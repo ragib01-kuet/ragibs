@@ -31,12 +31,14 @@ export function VideoEventOverlay({
   quiz,
   busy,
   onSubmitQuiz,
+  onOpenExam,
   onClose,
 }: {
   event: OverlayEvent;
   quiz?: OverlayQuiz;
   busy: boolean;
   onSubmitQuiz: (selectedIndex: number) => Promise<{ ok: boolean; isCorrect: boolean }>;
+  onOpenExam: (url: string) => Promise<void>;
   onClose: () => void;
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -115,10 +117,14 @@ export function VideoEventOverlay({
           {event.type === "exam" ? (
             <div className="flex flex-wrap items-center gap-2">
               {examUrl ? (
-                <Button asChild variant="secondary">
-                  <a href={examUrl} target="_blank" rel="noreferrer">
-                    Open exam
-                  </a>
+                <Button
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={async () => {
+                    await onOpenExam(examUrl);
+                  }}
+                >
+                  Open exam
                 </Button>
               ) : (
                 <p className="text-sm text-muted-foreground">Exam URL missing.</p>
