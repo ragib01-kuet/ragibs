@@ -211,6 +211,16 @@ export default function VideoPage() {
   const activeEvent = useMemo(() => events.find((e) => e.id === activeEventId) ?? null, [events, activeEventId]);
   const activeQuiz = useMemo(() => (activeEvent?.type === "quiz" ? quizByEventId.get(activeEvent.id) : undefined), [activeEvent, quizByEventId]);
 
+  async function trackExamLaunch(eventId: string) {
+    if (!userId) return;
+    // best-effort; RLS ensures only self insert.
+    try {
+      await supabase.from("exam_launches").insert({ event_id: eventId, user_id: userId });
+    } catch {
+      // ignore
+    }
+  }
+
   return (
     <AppShell title={v?.title ?? "Video"}>
       <div className="space-y-6">
@@ -283,10 +293,14 @@ export default function VideoPage() {
                         <CardContent className="space-y-3">
                           {e.type === "exam" ? (
                             examUrl ? (
-                              <Button asChild variant="secondary">
-                                <a href={examUrl} target="_blank" rel="noreferrer">
-                                  Open exam
-                                </a>
+                              <Button
+                                variant="secondary"
+                                onClick={async () => {
+                                  await trackExamLaunch(e.id);
+                                  window.open(examUrl, "_blank", "noopener,noreferrer");
+                                }}
+                              >
+                                Open exam
                               </Button>
                             ) : (
                               <p className="text-sm text-muted-foreground">Exam URL missing.</p>
@@ -420,6 +434,10 @@ export default function VideoPage() {
               await completionsQuery.refetch();
               await progressQuery.refetch();
               return r;
+            }}
+            onOpenExam={async (url) => {
+              await trackExamLaunch(activeEvent.id);
+              window.open(url, "_blank", "noopener,noreferrer");
             }}
             onClose={() => {
               setActiveEventId(null);

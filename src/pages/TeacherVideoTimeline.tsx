@@ -34,6 +34,10 @@ type Quiz = {
   correct_index: number;
 };
 
+type ExamLaunch = {
+  event_id: string;
+};
+
 function fmt(seconds: number) {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
@@ -81,6 +85,7 @@ export default function TeacherVideoTimeline() {
   });
 
   const quizEventIds = useMemo(() => (eventsQuery.data ?? []).filter((e) => e.type === "quiz").map((e) => e.id), [eventsQuery.data]);
+  const examEventIds = useMemo(() => (eventsQuery.data ?? []).filter((e) => e.type === "exam").map((e) => e.id), [eventsQuery.data]);
 
   const quizzesQuery = useQuery({
     queryKey: ["teacher", "video", videoId, "quizzes"],
@@ -94,6 +99,24 @@ export default function TeacherVideoTimeline() {
       return (res.data ?? []) as Quiz[];
     },
   });
+
+  const examLaunchesQuery = useQuery({
+    queryKey: ["teacher", "video", videoId, "exam-launches", examEventIds.join(",")],
+    enabled: canUse && examEventIds.length > 0,
+    queryFn: async () => {
+      const res = await supabase.from("exam_launches").select("event_id").in("event_id", examEventIds);
+      if (res.error) throw res.error;
+      return (res.data ?? []) as ExamLaunch[];
+    },
+  });
+
+  const examLaunchCountByEventId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of examLaunchesQuery.data ?? []) {
+      counts.set(r.event_id, (counts.get(r.event_id) ?? 0) + 1);
+    }
+    return counts;
+  }, [examLaunchesQuery.data]);
 
   const quizByEventId = useMemo(() => {
     const map = new Map<string, Quiz>();
@@ -482,6 +505,11 @@ export default function TeacherVideoTimeline() {
                             <div className="text-xs text-muted-foreground">Quiz: {quiz.question}</div>
                           ) : null}
                           {exam ? <div className="text-xs text-muted-foreground">Exam: {exam}</div> : null}
+                          {e.type === "exam" ? (
+                            <div className="text-xs text-muted-foreground">
+                              Launches: {examLaunchCountByEventId.get(e.id) ?? 0}
+                            </div>
+                          ) : null}
                           {sim ? <div className="text-xs text-muted-foreground">Simulation: {sim}</div> : null}
                         </div>
                         <div className="flex gap-2">
