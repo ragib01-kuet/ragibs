@@ -312,6 +312,9 @@ export default function TeacherCourseManage() {
                       <TableCell className="text-sm text-muted-foreground">{vid.published ? "Published" : "Draft"}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
+                          <Button asChild size="sm" variant="secondary">
+                            <Link to={`/studio/courses/${courseId}/videos/${vid.id}/timeline`}>Timeline</Link>
+                          </Button>
                           <Button
                             size="sm"
                             variant="secondary"
