@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthProvider";
+import { toast } from "@/hooks/use-toast";
 
 type Invite = {
   id: string;
@@ -25,6 +26,8 @@ export default function AdminInvites() {
   const [items, setItems] = useState<Invite[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [seedBusy, setSeedBusy] = useState(false);
 
   const canUse = useMemo(() => Boolean(session && isAdmin), [session, isAdmin]);
 
@@ -94,6 +97,47 @@ export default function AdminInvites() {
             <p className="text-xs text-muted-foreground">
               When the invited user signs in with Google using the same email, they automatically receive the “teacher” role.
             </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Demo content</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Create a published demo course + video with quiz/simulation/exam events.
+            </p>
+            <Button
+              variant="secondary"
+              disabled={!canUse || seedBusy}
+              onClick={async () => {
+                setSeedBusy(true);
+                try {
+                  const res = await supabase.functions.invoke("seed-demo-content", { body: {} });
+                  if (res.error) throw res.error;
+                  const courseId = (res.data as any)?.courseId as string | undefined;
+                  toast({
+                    title: "Demo content created",
+                    description: courseId ? "Opening the course…" : "Demo course is ready.",
+                  });
+                  if (courseId) {
+                    // lightweight navigation without adding route deps here
+                    window.location.assign(`/courses/${courseId}`);
+                  }
+                } catch (e: any) {
+                  toast({
+                    title: "Failed to seed demo content",
+                    description: e?.message ?? "Please try again.",
+                    variant: "destructive",
+                  });
+                } finally {
+                  setSeedBusy(false);
+                }
+              }}
+            >
+              {seedBusy ? "Creating…" : "Create demo course"}
+            </Button>
           </CardContent>
         </Card>
 
