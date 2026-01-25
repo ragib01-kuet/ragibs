@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthProvider";
 
@@ -18,6 +19,10 @@ type Course = {
   title: string;
   description: string | null;
   published: boolean;
+  tags: string[];
+  featured: boolean;
+  featured_rank: number;
+  thumbnail_url: string | null;
 };
 
 type Video = {
@@ -59,7 +64,7 @@ export default function TeacherCourseManage() {
     queryFn: async () => {
       const res = await supabase
         .from("courses")
-        .select("id,owner_id,title,description,published")
+        .select("id,owner_id,title,description,published,tags,featured,featured_rank,thumbnail_url")
         .eq("id", courseId!)
         .maybeSingle();
       if (res.error) throw res.error;
@@ -86,14 +91,46 @@ export default function TeacherCourseManage() {
   const [courseTitle, setCourseTitle] = useState("");
   const [courseDesc, setCourseDesc] = useState("");
   const [coursePublished, setCoursePublished] = useState(false);
+  const [courseTagsText, setCourseTagsText] = useState("");
+  const [courseFeatured, setCourseFeatured] = useState(false);
+  const [courseFeaturedRank, setCourseFeaturedRank] = useState(0);
+  const [courseThumbUrl, setCourseThumbUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (courseQuery.data) {
       setCourseTitle(courseQuery.data.title);
       setCourseDesc(courseQuery.data.description ?? "");
       setCoursePublished(courseQuery.data.published);
+      setCourseTagsText((courseQuery.data.tags ?? []).join(", "));
+      setCourseFeatured(Boolean(courseQuery.data.featured));
+      setCourseFeaturedRank(courseQuery.data.featured_rank ?? 0);
+      setCourseThumbUrl(courseQuery.data.thumbnail_url ?? null);
     }
   }, [courseQuery.data]);
+
+  function parseTags(text: string) {
+    return Array.from(
+      new Set(
+        text
+          .split(/[\n,]/g)
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ),
+    );
+  }
+
+  async function uploadCourseThumbnail(file: File) {
+    if (!session) throw new Error("Not signed in");
+    const userId = session.user.id;
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const path = `${userId}/${courseId}/${Date.now()}-${safeName}`;
+    const up = await supabase.storage.from("course-thumbnails").upload(path, file, {
+      upsert: true,
+      cacheControl: "3600",
+    });
+    if (up.error) throw up.error;
+    return supabase.storage.from("course-thumbnails").getPublicUrl(path).data.publicUrl;
+  }
 
   // Video create form
   const [vTitle, setVTitle] = useState("");
@@ -135,6 +172,52 @@ export default function TeacherCourseManage() {
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
+              <Label>Thumbnail (16:9)</Label>
+              {courseThumbUrl ? (
+                <div className="space-y-2">
+                  <div className="overflow-hidden rounded-md border">
+                    <img
+                      src={courseThumbUrl}
+                      alt="Course thumbnail"
+                      className="h-40 w-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary">Current thumbnail</Badge>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No thumbnail yet.</p>
+              )}
+
+              <Input
+                type="file"
+                accept="image/*"
+                disabled={!canUse || busy}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setBusy(true);
+                  setError(null);
+                  try {
+                    const url = await uploadCourseThumbnail(file);
+                    setCourseThumbUrl(url);
+                    const res = await supabase.from("courses").update({ thumbnail_url: url }).eq("id", courseId!);
+                    if (res.error) throw res.error;
+                    await courseQuery.refetch();
+                  } catch (err: any) {
+                    setError(err?.message ?? "Failed to upload thumbnail");
+                  } finally {
+                    setBusy(false);
+                    e.target.value = "";
+                  }
+                }}
+              />
+              <p className="text-xs text-muted-foreground">Uploads to file storage; the course stores only the URL.</p>
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
               <Label htmlFor="ct">Title</Label>
               <Input id="ct" value={courseTitle} disabled={!canUse || busy} onChange={(e) => setCourseTitle(e.target.value)} />
             </div>
@@ -154,6 +237,32 @@ export default function TeacherCourseManage() {
               </div>
               <Switch checked={coursePublished} disabled={!canUse || busy} onCheckedChange={setCoursePublished} />
             </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label>Tags (comma or newline separated)</Label>
+              <Textarea value={courseTagsText} disabled={!canUse || busy} onChange={(e) => setCourseTagsText(e.target.value)} />
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border p-3 md:col-span-2">
+              <div>
+                <div className="text-sm font-medium">Featured</div>
+                <div className="text-xs text-muted-foreground">Featured courses appear first on the homepage.</div>
+              </div>
+              <Switch checked={courseFeatured} disabled={!canUse || busy} onCheckedChange={setCourseFeatured} />
+            </div>
+
+            {courseFeatured ? (
+              <div className="space-y-2 md:col-span-2">
+                <Label>Featured rank (lower = higher)</Label>
+                <Input
+                  type="number"
+                  value={courseFeaturedRank}
+                  disabled={!canUse || busy}
+                  onChange={(e) => setCourseFeaturedRank(Number(e.target.value))}
+                />
+              </div>
+            ) : null}
+
             <div className="md:col-span-2">
               <Button
                 disabled={!canUse || busy || !courseTitle.trim()}
@@ -162,9 +271,18 @@ export default function TeacherCourseManage() {
                   setBusy(true);
                   setError(null);
                   try {
+                    const tags = parseTags(courseTagsText);
                     const res = await supabase
                       .from("courses")
-                      .update({ title: courseTitle.trim(), description: courseDesc || null, published: coursePublished })
+                      .update({
+                        title: courseTitle.trim(),
+                        description: courseDesc || null,
+                        published: coursePublished,
+                        tags,
+                        featured: courseFeatured,
+                        featured_rank: courseFeatured ? Math.floor(courseFeaturedRank || 0) : 0,
+                        thumbnail_url: courseThumbUrl,
+                      })
                       .eq("id", courseId);
                     if (res.error) throw res.error;
                     await courseQuery.refetch();

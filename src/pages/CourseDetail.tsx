@@ -10,6 +10,8 @@ type Course = {
   title: string;
   description: string | null;
   published: boolean;
+  thumbnail_url: string | null;
+  tags: string[];
 };
 
 type Video = {
@@ -30,7 +32,7 @@ export default function CourseDetail() {
     queryFn: async () => {
       const res = await supabase
         .from("courses")
-        .select("id,title,description,published")
+        .select("id,title,description,published,thumbnail_url,tags")
         .eq("id", courseId!)
         .maybeSingle();
       if (res.error) throw res.error;
@@ -74,6 +76,16 @@ export default function CourseDetail() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {courseQuery.data?.thumbnail_url ? (
+              <div className="mb-4 overflow-hidden rounded-md border">
+                <img
+                  src={courseQuery.data.thumbnail_url}
+                  alt={`${courseQuery.data.title} course thumbnail`}
+                  className="h-48 w-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+            ) : null}
             {videosQuery.isLoading ? (
               <p className="text-sm text-muted-foreground">Loading videos…</p>
             ) : videosQuery.isError ? (

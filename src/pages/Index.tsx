@@ -17,6 +17,7 @@ type Course = {
   tags: string[];
   featured: boolean;
   featured_rank: number;
+  thumbnail_url: string | null;
 };
 
 type ContinueItem = {
@@ -51,7 +52,7 @@ const Index = () => {
     queryFn: async () => {
       let q = supabase
         .from("courses")
-        .select("id,title,description,tags,featured,featured_rank")
+        .select("id,title,description,tags,featured,featured_rank,thumbnail_url")
         .eq("published", true)
         .order("featured", { ascending: false })
         .order("featured_rank", { ascending: true })
@@ -261,6 +262,16 @@ const Index = () => {
                     <CardDescription>{c.description ?? ""}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
+                    {c.thumbnail_url ? (
+                      <div className="overflow-hidden rounded-md border">
+                        <img
+                          src={c.thumbnail_url}
+                          alt={`${c.title} course thumbnail`}
+                          className="h-40 w-full object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    ) : null}
                     {c.tags?.length ? (
                       <div className="flex flex-wrap gap-2">
                         {c.tags.slice(0, 6).map((t) => (
@@ -315,6 +326,16 @@ const Index = () => {
                     <CardDescription>{c.description ?? ""}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
+                    {c.thumbnail_url ? (
+                      <div className="overflow-hidden rounded-md border">
+                        <img
+                          src={c.thumbnail_url}
+                          alt={`${c.title} course thumbnail`}
+                          className="h-40 w-full object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    ) : null}
                     {c.tags?.length ? (
                       <div className="flex flex-wrap gap-2">
                         {c.tags.slice(0, 4).map((t) => (

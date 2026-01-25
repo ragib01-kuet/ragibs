@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -284,6 +285,7 @@ export default function VideoPage() {
                     const selected = selectedByEvent[e.id];
                     const submitting = Boolean(submittingByEvent[e.id]);
                     const result = resultByEvent[e.id];
+                    const isCompleted = Boolean(completionsQuery.data?.has(e.id));
 
                     return (
                       <Card key={e.id}>
@@ -292,6 +294,14 @@ export default function VideoPage() {
                             {fmt(e.at_seconds)} · {e.type}
                             {e.required ? "" : " (optional)"}
                           </CardTitle>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {e.required ? <Badge variant="secondary">Required</Badge> : <Badge variant="secondary">Optional</Badge>}
+                            {userId ? (
+                              isCompleted ? <Badge variant="secondary">Completed</Badge> : <Badge variant="outline">Not completed</Badge>
+                            ) : (
+                              <Badge variant="outline">Sign in to track</Badge>
+                            )}
+                          </div>
                           <CardDescription>{e.title ?? ""}</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3">

@@ -35,6 +35,7 @@ export function AppShell({ title, children }: { title?: string; children: React.
             <nav className="hidden items-center gap-4 md:flex">
               <NavItem to="/">Courses</NavItem>
               {isTeacher && <NavItem to="/studio">Teacher Studio</NavItem>}
+              {isTeacher && <NavItem to="/studio/analytics">Analytics</NavItem>}
               {isAdmin && <NavItem to="/admin/invites">Admin</NavItem>}
               {session && <NavItem to="/profile">Profile</NavItem>}
             </nav>
