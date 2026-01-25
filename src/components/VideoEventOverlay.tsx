@@ -32,6 +32,8 @@ export function VideoEventOverlay({
   busy,
   onSubmitQuiz,
   onOpenExam,
+  onComplete,
+  completed,
   onClose,
 }: {
   event: OverlayEvent;
@@ -39,6 +41,8 @@ export function VideoEventOverlay({
   busy: boolean;
   onSubmitQuiz: (selectedIndex: number) => Promise<{ ok: boolean; isCorrect: boolean }>;
   onOpenExam: (url: string) => Promise<void>;
+  onComplete: () => Promise<{ ok: boolean }>;
+  completed: boolean;
   onClose: () => void;
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -129,9 +133,21 @@ export function VideoEventOverlay({
               ) : (
                 <p className="text-sm text-muted-foreground">Exam URL missing.</p>
               )}
-              <Button onClick={onClose} disabled={busy}>
-                Continue
-              </Button>
+              {event.required ? (
+                <Button
+                  onClick={async () => {
+                    const r = await onComplete();
+                    if (r.ok) onClose();
+                  }}
+                  disabled={busy || completed}
+                >
+                  {completed ? "Completed" : "Mark complete"}
+                </Button>
+              ) : (
+                <Button onClick={onClose} disabled={busy}>
+                  Continue
+                </Button>
+              )}
             </div>
           ) : null}
 
@@ -146,9 +162,21 @@ export function VideoEventOverlay({
               ) : (
                 <p className="text-sm text-muted-foreground">Simulation URL missing.</p>
               )}
-              <Button onClick={onClose} disabled={busy}>
-                Continue
-              </Button>
+              {event.required ? (
+                <Button
+                  onClick={async () => {
+                    const r = await onComplete();
+                    if (r.ok) onClose();
+                  }}
+                  disabled={busy || completed}
+                >
+                  {completed ? "Completed" : "Mark complete"}
+                </Button>
+              ) : (
+                <Button onClick={onClose} disabled={busy}>
+                  Continue
+                </Button>
+              )}
             </div>
           ) : null}
         </CardContent>

@@ -210,6 +210,10 @@ export default function VideoPage() {
 
   const activeEvent = useMemo(() => events.find((e) => e.id === activeEventId) ?? null, [events, activeEventId]);
   const activeQuiz = useMemo(() => (activeEvent?.type === "quiz" ? quizByEventId.get(activeEvent.id) : undefined), [activeEvent, quizByEventId]);
+  const activeCompleted = useMemo(() => {
+    if (!activeEvent || !completionsQuery.data) return false;
+    return completionsQuery.data.has(activeEvent.id);
+  }, [activeEvent, completionsQuery.data]);
 
   async function trackExamLaunch(eventId: string) {
     if (!userId) return;
@@ -438,6 +442,16 @@ export default function VideoPage() {
             onOpenExam={async (url) => {
               await trackExamLaunch(activeEvent.id);
               window.open(url, "_blank", "noopener,noreferrer");
+            }}
+            completed={activeCompleted}
+            onComplete={async () => {
+              const res = await supabase.functions.invoke("event-complete", {
+                body: { eventId: activeEvent.id },
+              });
+              if (res.error) return { ok: false };
+              await completionsQuery.refetch();
+              await progressQuery.refetch();
+              return { ok: true };
             }}
             onClose={() => {
               setActiveEventId(null);
