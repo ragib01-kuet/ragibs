@@ -9,6 +9,8 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
 import AdminInvites from "./pages/AdminInvites";
+import CourseDetail from "./pages/CourseDetail";
+import VideoPage from "./pages/VideoPage";
 
 const queryClient = new QueryClient();
 
@@ -21,6 +23,8 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/courses/:courseId" element={<CourseDetail />} />
+            <Route path="/courses/:courseId/videos/:videoId" element={<VideoPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/admin/invites" element={<AdminInvites />} />
