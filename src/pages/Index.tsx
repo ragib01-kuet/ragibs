@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthProvider";
+import { BookOpen, GraduationCap, PlayCircle, ShieldCheck } from "lucide-react";
 
 type Course = {
   id: string;
@@ -42,7 +43,8 @@ function normalizeTag(t: string) {
 const Index = () => {
   const { session, roles } = useAuth();
   const userId = session?.user?.id ?? null;
-  const isTeacher = roles.includes("teacher") || roles.includes("admin");
+  const isAdmin = roles.includes("admin");
+  const isTeacher = roles.includes("teacher") || isAdmin;
 
   const [search, setSearch] = useState("");
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -144,22 +146,87 @@ const Index = () => {
   return (
     <AppShell title="Courses">
       <div className="space-y-10">
-        <header className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="space-y-2">
+        <header className="relative overflow-hidden rounded-xl border bg-background">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background to-muted" />
+          <div className="relative grid gap-6 p-6 lg:grid-cols-[1.2fr_0.8fr] lg:p-8">
+            <div className="space-y-4">
               <p className="text-xs font-medium tracking-widest text-muted-foreground">RAGIB’S WORLD</p>
-              <h2 className="text-balance text-3xl font-semibold tracking-tight md:text-4xl">
-                Learn in focused lessons—with checkpoints that keep you moving.
-              </h2>
-              <p className="max-w-2xl text-pretty text-sm text-muted-foreground md:text-base">
-                Browse published courses, pick a path, and keep your progress synced across sessions.
-              </p>
+              <div className="space-y-2">
+                <h2 className="text-balance text-3xl font-semibold tracking-tight md:text-4xl">
+                  Study smarter: video lessons with quizzes, simulations, and exams.
+                </h2>
+                <p className="max-w-2xl text-pretty text-sm text-muted-foreground md:text-base">
+                  Learn step-by-step with checkpoints that unlock your progress. Rewind anytime—forward seeking unlocks when you pass.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="flex items-start gap-3 rounded-lg border bg-card p-3">
+                  <div className="mt-0.5 rounded-md border bg-muted p-2">
+                    <PlayCircle className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">Interactive video</div>
+                    <div className="text-xs text-muted-foreground">Quizzes + in-player overlays</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 rounded-lg border bg-card p-3">
+                  <div className="mt-0.5 rounded-md border bg-muted p-2">
+                    <ShieldCheck className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">Progress saved</div>
+                    <div className="text-xs text-muted-foreground">Pick up where you left off</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 rounded-lg border bg-card p-3">
+                  <div className="mt-0.5 rounded-md border bg-muted p-2">
+                    <GraduationCap className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">Teacher-led</div>
+                    <div className="text-xs text-muted-foreground">Courses by verified teachers</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 rounded-lg border bg-card p-3">
+                  <div className="mt-0.5 rounded-md border bg-muted p-2">
+                    <BookOpen className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">Lecture sheets</div>
+                    <div className="text-xs text-muted-foreground">Open notes alongside lessons</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                {session ? (
+                  <Button asChild>
+                    <Link to="/profile">Go to Profile</Link>
+                  </Button>
+                ) : (
+                  <Button asChild>
+                    <Link to="/login">Sign in to track progress</Link>
+                  </Button>
+                )}
+                {isTeacher ? (
+                  <Button asChild variant="secondary">
+                    <Link to="/studio">Open Teacher Studio</Link>
+                  </Button>
+                ) : null}
+                {isAdmin ? (
+                  <Button asChild variant="secondary">
+                    <Link to="/admin/invites">Admin tools</Link>
+                  </Button>
+                ) : null}
+                <p className="text-xs text-muted-foreground">Public browsing works without sign-in.</p>
+              </div>
             </div>
 
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Find a course</CardTitle>
-                <CardDescription>Search by title or description.</CardDescription>
+                <CardDescription>Search by title/description or filter by tags.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search courses…" />
@@ -185,23 +252,15 @@ const Index = () => {
                   ))}
                 </div>
                 {tags.length > 10 ? <p className="text-xs text-muted-foreground">Showing top tags only.</p> : null}
+
+                <div className="rounded-lg border bg-muted/40 p-3">
+                  <div className="text-sm font-medium">New here?</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Start any course → checkpoints appear automatically → your progress unlocks as you pass.
+                  </div>
+                </div>
               </CardContent>
             </Card>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">Public browsing is enabled. Sign in to track progress.</p>
-            {isTeacher ? (
-              <Button asChild variant="secondary">
-                <Link to="/studio">Open Teacher Studio</Link>
-              </Button>
-            ) : (
-              <Card className="w-full md:w-auto">
-                <CardContent className="py-3">
-                  <p className="text-sm text-muted-foreground">Teacher Studio is invite-only.</p>
-                </CardContent>
-              </Card>
-            )}
           </div>
         </header>
 
@@ -314,7 +373,29 @@ const Index = () => {
           ) : coursesQuery.isError ? (
             <p className="text-sm text-destructive">Failed to load courses.</p>
           ) : (coursesQuery.data ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground">No published courses yet.</p>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">No courses yet</CardTitle>
+                <CardDescription>Once a course is published, it will appear here for students.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid gap-2 text-sm text-muted-foreground">
+                  <div>1) Admin creates demo content (one click)</div>
+                  <div>2) Students open the demo course and start watching</div>
+                  <div>3) Quizzes/simulations/exams appear automatically on the timeline</div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {isAdmin ? (
+                    <Button asChild variant="secondary">
+                      <Link to="/admin/invites">Create demo course (Admin)</Link>
+                    </Button>
+                  ) : null}
+                  <Button asChild>
+                    <Link to={session ? "/profile" : "/login"}>{session ? "Go to Profile" : "Sign in"}</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           ) : allCourses.length === 0 ? (
             <p className="text-sm text-muted-foreground">No courses match this filter.</p>
           ) : (
