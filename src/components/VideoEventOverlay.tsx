@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -48,6 +48,8 @@ export function VideoEventOverlay({
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [result, setResult] = useState<{ ok: boolean; isCorrect: boolean } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [simulationLoaded, setSimulationLoaded] = useState(false);
+  const [showSimulationFallbackHint, setShowSimulationFallbackHint] = useState(false);
 
   const examUrl = useMemo(() => (event.type === "exam" ? (event.payload?.url as string | undefined) : undefined), [event]);
   const simulationUrl = useMemo(
@@ -55,9 +57,20 @@ export function VideoEventOverlay({
     [event],
   );
 
+  useEffect(() => {
+    if (event.type !== "simulation") return;
+    setSimulationLoaded(false);
+    setShowSimulationFallbackHint(false);
+
+    const t = window.setTimeout(() => {
+      setShowSimulationFallbackHint(true);
+    }, 9000);
+    return () => window.clearTimeout(t);
+  }, [event.id, event.type, simulationUrl]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur">
-      <Card className="w-full max-w-2xl">
+      <Card className="w-full max-w-4xl">
         <CardHeader>
           <CardTitle className="text-base">
             {fmt(event.at_seconds)} · {event.type}
@@ -154,28 +167,54 @@ export function VideoEventOverlay({
           {event.type === "simulation" ? (
             <div className="flex flex-wrap items-center gap-2">
               {simulationUrl ? (
-                <Button asChild variant="secondary">
-                  <a href={simulationUrl} target="_blank" rel="noreferrer">
-                    Open simulation
-                  </a>
-                </Button>
+                <div className="w-full space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button asChild variant="secondary">
+                      <a href={simulationUrl} target="_blank" rel="noreferrer">
+                        Open in new tab
+                      </a>
+                    </Button>
+                    {event.required ? (
+                      <Button
+                        onClick={async () => {
+                          const r = await onComplete();
+                          if (r.ok) onClose();
+                        }}
+                        disabled={busy || completed}
+                      >
+                        {completed ? "Completed" : "Mark complete"}
+                      </Button>
+                    ) : (
+                      <Button onClick={onClose} disabled={busy}>
+                        Continue
+                      </Button>
+                    )}
+                  </div>
+
+                  {!simulationLoaded ? (
+                    <p className="text-sm text-muted-foreground">Loading simulation…</p>
+                  ) : null}
+                  {showSimulationFallbackHint && !simulationLoaded ? (
+                    <p className="text-sm text-muted-foreground">
+                      If it doesn’t load here, use “Open in new tab”.
+                    </p>
+                  ) : null}
+
+                  <div className="overflow-hidden rounded-md border">
+                    <iframe
+                      key={simulationUrl}
+                      title={event.title ? `Simulation: ${event.title}` : "Simulation"}
+                      src={simulationUrl}
+                      className="h-[60vh] w-full"
+                      sandbox="allow-scripts allow-forms allow-same-origin"
+                      referrerPolicy="no-referrer"
+                      loading="lazy"
+                      onLoad={() => setSimulationLoaded(true)}
+                    />
+                  </div>
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground">Simulation URL missing.</p>
-              )}
-              {event.required ? (
-                <Button
-                  onClick={async () => {
-                    const r = await onComplete();
-                    if (r.ok) onClose();
-                  }}
-                  disabled={busy || completed}
-                >
-                  {completed ? "Completed" : "Mark complete"}
-                </Button>
-              ) : (
-                <Button onClick={onClose} disabled={busy}>
-                  Continue
-                </Button>
               )}
             </div>
           ) : null}

@@ -313,10 +313,14 @@ export default function VideoPage() {
 
                           {e.type === "simulation" ? (
                             simulationUrl ? (
-                              <Button asChild variant="secondary">
-                                <a href={simulationUrl} target="_blank" rel="noreferrer">
-                                  Open simulation
-                                </a>
+                              <Button
+                                variant="secondary"
+                                onClick={() => {
+                                  videoElRef.current?.pause();
+                                  setActiveEventId(e.id);
+                                }}
+                              >
+                                Open simulation
                               </Button>
                             ) : (
                               <p className="text-sm text-muted-foreground">Simulation URL missing.</p>
