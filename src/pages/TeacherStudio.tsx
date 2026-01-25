@@ -17,6 +17,8 @@ type Course = {
   published: boolean;
   owner_id: string;
   created_at: string;
+  featured: boolean;
+  tags: string[];
 };
 
 export default function TeacherStudio() {
@@ -45,7 +47,7 @@ export default function TeacherStudio() {
     queryFn: async () => {
       const res = await supabase
         .from("courses")
-        .select("id,title,description,published,owner_id,created_at")
+        .select("id,title,description,published,owner_id,created_at,featured,tags")
         .order("created_at", { ascending: false });
       if (res.error) throw res.error;
       return (res.data ?? []) as Course[];
@@ -123,7 +125,11 @@ export default function TeacherStudio() {
                   <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
                     <div>
                       <div className="font-medium">{c.title}</div>
-                      <div className="text-xs text-muted-foreground">{c.published ? "Published" : "Draft"}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {c.published ? "Published" : "Draft"}
+                        {c.featured ? " · Featured" : ""}
+                        {(c.tags?.length ?? 0) > 0 ? ` · ${c.tags.length} tags` : ""}
+                      </div>
                     </div>
                     <Button asChild size="sm" variant="secondary">
                       <Link to={`/studio/courses/${c.id}`}>Manage</Link>

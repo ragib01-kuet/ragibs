@@ -24,6 +24,7 @@ export type Database = {
           owner_id: string
           published: boolean
           tags: string[]
+          thumbnail_url: string | null
           title: string
           updated_at: string
         }
@@ -36,6 +37,7 @@ export type Database = {
           owner_id: string
           published?: boolean
           tags?: string[]
+          thumbnail_url?: string | null
           title: string
           updated_at?: string
         }
@@ -48,6 +50,7 @@ export type Database = {
           owner_id?: string
           published?: boolean
           tags?: string[]
+          thumbnail_url?: string | null
           title?: string
           updated_at?: string
         }
