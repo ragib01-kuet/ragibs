@@ -18,9 +18,13 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    /* Deep blue primary (professional + education-friendly) */
-    --primary: 221 83% 53%;
+    /* More colorful brand (education-friendly, high contrast) */
+    --primary: 229 85% 56%;
     --primary-foreground: 210 40% 98%;
+
+    /* Secondary accents used for gradients/glows */
+    --brand-2: 320 88% 58%;
+    --brand-3: 167 78% 42%;
 
     --secondary: 210 40% 96%;
     --secondary-foreground: 222 47% 11%;
@@ -36,9 +40,13 @@ All colors MUST be HSL.
 
     --border: 214 28% 90%;
     --input: 214 28% 90%;
-    --ring: 221 83% 53%;
+    --ring: 229 85% 56%;
 
     --radius: 0.75rem;
+
+    /* Effects */
+    --shadow-elev: 0 12px 34px -18px hsl(var(--foreground) / 0.25);
+    --shadow-glow: 0 18px 60px -25px hsl(var(--primary) / 0.55);
 
     --sidebar-background: 0 0% 98%;
 
@@ -67,8 +75,11 @@ All colors MUST be HSL.
     --popover: 222 47% 9%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 217 91% 60%;
+    --primary: 229 90% 66%;
     --primary-foreground: 222 47% 11%;
+
+    --brand-2: 320 92% 68%;
+    --brand-3: 167 78% 46%;
 
     --secondary: 217 33% 16%;
     --secondary-foreground: 210 40% 98%;
@@ -84,7 +95,10 @@ All colors MUST be HSL.
 
     --border: 217 33% 16%;
     --input: 217 33% 16%;
-    --ring: 217 91% 60%;
+    --ring: 229 90% 66%;
+
+    --shadow-elev: 0 12px 34px -18px hsl(var(--foreground) / 0.25);
+    --shadow-glow: 0 18px 60px -25px hsl(var(--primary) / 0.35);
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -109,5 +123,39 @@ All colors MUST be HSL.
 
   ::selection {
     background: hsl(var(--primary) / 0.18);
+  }
+}
+
+@layer utilities {
+  /* Hero background with colorful, token-based gradient */
+  .bg-hero {
+    background:
+      radial-gradient(1100px 520px at 10% 10%, hsl(var(--primary) / 0.22), transparent 60%),
+      radial-gradient(900px 520px at 90% 0%, hsl(var(--brand-2) / 0.18), transparent 55%),
+      radial-gradient(900px 520px at 60% 110%, hsl(var(--brand-3) / 0.16), transparent 55%),
+      linear-gradient(180deg, hsl(var(--background)), hsl(var(--muted) / 0.6));
+  }
+
+  .card-elev {
+    box-shadow: var(--shadow-elev);
+  }
+
+  .card-glow {
+    box-shadow: var(--shadow-elev), var(--shadow-glow);
+  }
+
+  .text-gradient {
+    background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--brand-2)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .hover-lift {
+    transition: transform 200ms ease, box-shadow 200ms ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-elev), var(--shadow-glow);
   }
 }

@@ -11,18 +11,27 @@ export default function Index() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <header className="space-y-3">
+        <header className="relative overflow-hidden rounded-xl border bg-hero p-6 card-glow animate-fade-in md:p-8">
           <p className="text-xs font-medium tracking-widest text-muted-foreground">RAGIB’S WORLD</p>
-          <h1 className="text-balance text-3xl font-semibold tracking-tight md:text-4xl">
-            Interactive courses for students—learn, practice, and progress.
+          <h1 className="mt-3 text-balance text-3xl font-semibold tracking-tight md:text-4xl">
+            <span className="text-gradient">Interactive courses</span> for students—learn, practice, and progress.
           </h1>
-          <p className="max-w-2xl text-pretty text-sm text-muted-foreground md:text-base">
+          <p className="mt-2 max-w-2xl text-pretty text-sm text-muted-foreground md:text-base">
             Start watching lessons, hit checkpoints (quiz/simulation/exam), and keep your progress saved.
           </p>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Button asChild className="hover-lift">
+              <Link to="/courses">Explore courses</Link>
+            </Button>
+            <Button asChild variant="secondary" className="hover-lift">
+              <Link to="/login">Teacher login / signup</Link>
+            </Button>
+          </div>
         </header>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <Card>
+          <Card className="card-elev hover-lift animate-scale-in">
             <CardHeader>
               <CardTitle className="text-base">Student area</CardTitle>
               <CardDescription>Browse courses and start learning.</CardDescription>
@@ -40,7 +49,7 @@ export default function Index() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="card-elev hover-lift animate-scale-in">
             <CardHeader>
               <CardTitle className="text-base">Teacher login / signup</CardTitle>
               <CardDescription>Teacher access is invite-only (admin approved).</CardDescription>

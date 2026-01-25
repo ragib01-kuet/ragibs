@@ -152,14 +152,13 @@ const Courses = () => {
   return (
     <AppShell title="Courses">
       <div className="space-y-10">
-        <header className="relative overflow-hidden rounded-xl border bg-background">
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background to-muted" />
+        <header className="relative overflow-hidden rounded-xl border bg-hero p-0 card-glow animate-fade-in">
           <div className="relative grid gap-6 p-6 lg:grid-cols-[1.2fr_0.8fr] lg:p-8">
             <div className="space-y-4">
               <p className="text-xs font-medium tracking-widest text-muted-foreground">RAGIB’S WORLD</p>
               <div className="space-y-2">
                 <h2 className="text-balance text-3xl font-semibold tracking-tight md:text-4xl">
-                  Study smarter: video lessons with quizzes, simulations, and exams.
+                  <span className="text-gradient">Study smarter</span>: video lessons with quizzes, simulations, and exams.
                 </h2>
                 <p className="max-w-2xl text-pretty text-sm text-muted-foreground md:text-base">
                   Learn step-by-step with checkpoints that unlock your progress. Rewind anytime—forward seeking unlocks when you pass.
@@ -167,7 +166,7 @@ const Courses = () => {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="flex items-start gap-3 rounded-lg border bg-card p-3">
+                <div className="flex items-start gap-3 rounded-lg border bg-card/70 p-3 backdrop-blur hover-lift">
                   <div className="mt-0.5 rounded-md border bg-muted p-2">
                     <PlayCircle className="h-4 w-4" />
                   </div>
@@ -176,7 +175,7 @@ const Courses = () => {
                     <div className="text-xs text-muted-foreground">Quizzes + in-player overlays</div>
                   </div>
                 </div>
-                <div className="flex items-start gap-3 rounded-lg border bg-card p-3">
+                <div className="flex items-start gap-3 rounded-lg border bg-card/70 p-3 backdrop-blur hover-lift">
                   <div className="mt-0.5 rounded-md border bg-muted p-2">
                     <ShieldCheck className="h-4 w-4" />
                   </div>
@@ -185,7 +184,7 @@ const Courses = () => {
                     <div className="text-xs text-muted-foreground">Pick up where you left off</div>
                   </div>
                 </div>
-                <div className="flex items-start gap-3 rounded-lg border bg-card p-3">
+                <div className="flex items-start gap-3 rounded-lg border bg-card/70 p-3 backdrop-blur hover-lift">
                   <div className="mt-0.5 rounded-md border bg-muted p-2">
                     <GraduationCap className="h-4 w-4" />
                   </div>
@@ -194,7 +193,7 @@ const Courses = () => {
                     <div className="text-xs text-muted-foreground">Courses by verified teachers</div>
                   </div>
                 </div>
-                <div className="flex items-start gap-3 rounded-lg border bg-card p-3">
+                <div className="flex items-start gap-3 rounded-lg border bg-card/70 p-3 backdrop-blur hover-lift">
                   <div className="mt-0.5 rounded-md border bg-muted p-2">
                     <BookOpen className="h-4 w-4" />
                   </div>
@@ -215,14 +214,14 @@ const Courses = () => {
                     <Link to="/login">Sign in to track progress</Link>
                   </Button>
                 )}
-                <Button asChild variant="secondary">
+                <Button asChild variant="secondary" className="hover-lift">
                   <Link to="/login">Teacher login / signup</Link>
                 </Button>
                 <p className="text-xs text-muted-foreground">Public browsing works without sign-in.</p>
               </div>
             </div>
 
-            <Card>
+            <Card className="card-elev animate-scale-in">
               <CardHeader>
                 <CardTitle className="text-base">Find a course</CardTitle>
                 <CardDescription>Search by title/description or filter by tags.</CardDescription>
