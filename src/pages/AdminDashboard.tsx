@@ -19,7 +19,7 @@ export default function AdminDashboard() {
   const [seedBusy, setSeedBusy] = useState(false);
 
   useEffect(() => {
-    if (!loading && !session) navigate("/login");
+    if (!loading && !session) navigate("/admin/login");
   }, [loading, session, navigate]);
 
   useEffect(() => {
