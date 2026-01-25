@@ -149,6 +149,7 @@ export default function TeacherCourseManage() {
     const up = await supabase.storage.from("videos").upload(path, file, {
       upsert: true,
       cacheControl: "3600",
+      contentType: file.type || undefined,
     });
     if (up.error) throw up.error;
     return supabase.storage.from("videos").getPublicUrl(path).data.publicUrl;
