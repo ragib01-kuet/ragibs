@@ -23,6 +23,13 @@ export default function Profile() {
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [publicHeadline, setPublicHeadline] = useState("");
+  const [publicBio, setPublicBio] = useState("");
+  const [publicBusy, setPublicBusy] = useState(false);
+  const [publicError, setPublicError] = useState<string | null>(null);
+
+  const [publicLoadedOnce, setPublicLoadedOnce] = useState(false);
   const [teacherRequest, setTeacherRequest] = useState<TeacherRequest | null>(null);
   const [teacherRequestMessage, setTeacherRequestMessage] = useState("");
   const [teacherBusy, setTeacherBusy] = useState(false);
@@ -33,6 +40,38 @@ export default function Profile() {
 
   const canEdit = useMemo(() => Boolean(session && profile && userId), [session, profile, userId]);
   const isTeacher = roles.includes("teacher") || roles.includes("admin");
+
+  // Load public teacher card (only relevant for teachers/admins)
+  useEffect(() => {
+    if (!userId || !isTeacher) return;
+    void (async () => {
+      try {
+        const res = await supabase
+          .from("teacher_public_profiles")
+          .select("display_name,headline,bio")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (res.error) throw res.error;
+
+        // Prefill: public values if present, otherwise fall back to profile fields
+        const nextHeadline = res.data?.headline ?? "";
+        const nextBio = res.data?.bio ?? profile?.bio ?? "";
+        setPublicHeadline(nextHeadline);
+        setPublicBio(nextBio);
+      } catch {
+        // best-effort
+      } finally {
+        setPublicLoadedOnce(true);
+      }
+    })();
+  }, [userId, isTeacher]);
+
+  // Keep the default public bio in sync if profile loads later (but don't overwrite user edits)
+  useEffect(() => {
+    if (!publicLoadedOnce) return;
+    // Only backfill if still empty
+    if (!publicBio.trim() && profile?.bio) setPublicBio(profile.bio);
+  }, [profile?.bio, publicLoadedOnce]);
 
   useEffect(() => {
     if (!userId) return;
@@ -168,6 +207,70 @@ export default function Profile() {
             >
               Save
             </Button>
+
+            {isTeacher ? (
+              <div className="pt-6">
+                <div className="text-sm font-medium">Public teacher card</div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  This is what students see on your courses and videos.
+                </div>
+
+                {publicError ? <p className="mt-2 text-sm text-destructive">{publicError}</p> : null}
+
+                <div className="mt-3 space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="publicHeadline">Headline</Label>
+                    <Input
+                      id="publicHeadline"
+                      value={publicHeadline}
+                      disabled={!canEdit || publicBusy}
+                      onChange={(e) => setPublicHeadline(e.target.value)}
+                      placeholder="e.g., Physics Teacher · KUET"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="publicBio">Public bio</Label>
+                    <Textarea
+                      id="publicBio"
+                      value={publicBio}
+                      disabled={!canEdit || publicBusy}
+                      onChange={(e) => setPublicBio(e.target.value)}
+                      placeholder="Short bio shown to students…"
+                    />
+                  </div>
+
+                  <Button
+                    variant="secondary"
+                    disabled={!canEdit || publicBusy}
+                    onClick={async () => {
+                      if (!userId || !profile) return;
+                      setPublicBusy(true);
+                      setPublicError(null);
+                      try {
+                        const res = await supabase.from("teacher_public_profiles").upsert(
+                          {
+                            user_id: userId,
+                            display_name: displayName.trim() || profile.display_name,
+                            headline: publicHeadline.trim() || null,
+                            bio: publicBio.trim() || null,
+                            avatar_url: profile.avatar_url,
+                          },
+                          { onConflict: "user_id" },
+                        );
+                        if (res.error) throw res.error;
+                      } catch (e: any) {
+                        setPublicError(e?.message ?? "Failed to save public teacher card");
+                      } finally {
+                        setPublicBusy(false);
+                      }
+                    }}
+                  >
+                    {publicBusy ? "Saving…" : "Save public teacher card"}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
 
             <div className="pt-4">
               <div className="text-sm font-medium">Teacher access</div>
