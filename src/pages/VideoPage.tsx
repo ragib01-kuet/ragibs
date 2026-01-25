@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/contexts/AuthProvider";
+import { VideoEventOverlay } from "@/components/VideoEventOverlay";
 
 type Video = {
   id: string;
@@ -45,9 +47,16 @@ function fmt(seconds: number) {
 
 export default function VideoPage() {
   const { courseId, videoId } = useParams();
+  const { session } = useAuth();
+  const userId = session?.user?.id ?? null;
   const [selectedByEvent, setSelectedByEvent] = useState<Record<string, number | undefined>>({});
   const [submittingByEvent, setSubmittingByEvent] = useState<Record<string, boolean>>({});
   const [resultByEvent, setResultByEvent] = useState<Record<string, { ok: boolean; isCorrect: boolean } | undefined>>({});
+  const [activeEventId, setActiveEventId] = useState<string | null>(null);
+
+  const videoElRef = useRef<HTMLVideoElement | null>(null);
+  const lastProgressSentAtRef = useRef<number>(0);
+  const unlockedRef = useRef<number>(0);
 
   const videoQuery = useQuery({
     queryKey: ["video", videoId],
@@ -95,6 +104,35 @@ export default function VideoPage() {
     },
   });
 
+  const progressQuery = useQuery({
+    queryKey: ["video", videoId, "progress", userId],
+    enabled: Boolean(videoId && userId),
+    queryFn: async () => {
+      const res = await supabase
+        .from("video_progress")
+        .select("id,unlocked_until_seconds")
+        .eq("video_id", videoId!)
+        .eq("user_id", userId!)
+        .maybeSingle();
+      if (res.error) throw res.error;
+      return res.data as { id: string; unlocked_until_seconds: number } | null;
+    },
+  });
+
+  const completionsQuery = useQuery({
+    queryKey: ["video", videoId, "completions", userId, eventsQuery.data?.length ?? 0],
+    enabled: Boolean(videoId && userId && (eventsQuery.data?.length ?? 0) > 0),
+    queryFn: async () => {
+      const ids = (eventsQuery.data ?? []).map((e) => e.id);
+      const res = await supabase
+        .from("video_event_completions")
+        .select("event_id")
+        .in("event_id", ids);
+      if (res.error) throw res.error;
+      return new Set((res.data ?? []).map((r) => r.event_id as string));
+    },
+  });
+
   const quizByEventId = useMemo(() => {
     const map = new Map<string, Quiz>();
     for (const q of quizzesQuery.data ?? []) map.set(q.event_id, q);
@@ -103,6 +141,75 @@ export default function VideoPage() {
 
   const v = videoQuery.data;
   const events = eventsQuery.data ?? [];
+
+  const unlockedUntil = useMemo(() => {
+    const fromDb = progressQuery.data?.unlocked_until_seconds ?? 0;
+    return Math.max(0, fromDb);
+  }, [progressQuery.data]);
+
+  useEffect(() => {
+    unlockedRef.current = unlockedUntil;
+  }, [unlockedUntil]);
+
+  // Auto-open the next event once playback reaches it (and it's not already completed).
+  useEffect(() => {
+    if (!videoElRef.current) return;
+    const el = videoElRef.current;
+
+    const onTimeUpdate = () => {
+      const t = el.currentTime;
+
+      // Progress writeback (best-effort): every 5s, advance unlocked to watched time.
+      if (userId) {
+        const now = Date.now();
+        if (now - lastProgressSentAtRef.current > 5000) {
+          const nextUnlocked = Math.max(unlockedRef.current, Math.floor(t));
+          lastProgressSentAtRef.current = now;
+          unlockedRef.current = nextUnlocked;
+          void (async () => {
+            try {
+              await supabase
+                .from("video_progress")
+                .upsert(
+                  { video_id: videoId!, user_id: userId, unlocked_until_seconds: nextUnlocked },
+                  { onConflict: "user_id,video_id" },
+                );
+              await progressQuery.refetch();
+            } catch {
+              // best-effort
+            }
+          })();
+        }
+      }
+
+      if (activeEventId) return;
+      if (events.length === 0) return;
+
+      const completed = completionsQuery.data;
+      const next = events.find((e) => t >= e.at_seconds && (!completed || !completed.has(e.id)));
+      if (next) {
+        el.pause();
+        setActiveEventId(next.id);
+      }
+    };
+
+    const onSeeking = () => {
+      const allowed = unlockedRef.current;
+      if (el.currentTime > allowed + 0.5) {
+        el.currentTime = allowed;
+      }
+    };
+
+    el.addEventListener("timeupdate", onTimeUpdate);
+    el.addEventListener("seeking", onSeeking);
+    return () => {
+      el.removeEventListener("timeupdate", onTimeUpdate);
+      el.removeEventListener("seeking", onSeeking);
+    };
+  }, [activeEventId, completionsQuery.data, events, progressQuery, userId, videoId]);
+
+  const activeEvent = useMemo(() => events.find((e) => e.id === activeEventId) ?? null, [events, activeEventId]);
+  const activeQuiz = useMemo(() => (activeEvent?.type === "quiz" ? quizByEventId.get(activeEvent.id) : undefined), [activeEvent, quizByEventId]);
 
   return (
     <AppShell title={v?.title ?? "Video"}>
@@ -119,15 +226,26 @@ export default function VideoPage() {
             <CardDescription>{videoQuery.isError ? "Failed to load video." : v?.description ?? ""}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-lg border bg-muted p-6">
-              <p className="text-sm text-muted-foreground">
-                Interactive player (timeline lock + quizzes/simulations/exams) will be implemented next.
-              </p>
+            <div className="rounded-lg border bg-muted p-4">
               {v?.video_url ? (
-                <p className="mt-2 text-sm">
-                  Video URL: <span className="font-mono text-xs">{v.video_url}</span>
-                </p>
-              ) : null}
+                <div className="space-y-2">
+                  <video
+                    ref={videoElRef}
+                    src={v.video_url}
+                    controls
+                    className="w-full rounded-md"
+                  />
+                  <div className="text-xs text-muted-foreground">
+                    {userId ? (
+                      <>Seek lock enabled · Unlocked until {fmt(unlockedUntil)}</>
+                    ) : (
+                      <>Sign in to enable seek lock and progress tracking.</>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No video URL provided.</p>
+              )}
             </div>
 
             <Separator />
@@ -217,6 +335,8 @@ export default function VideoPage() {
                                         });
                                         if (res.error) throw res.error;
                                         setResultByEvent((r) => ({ ...r, [e.id]: { ok: true, isCorrect: Boolean((res.data as any)?.isCorrect) } }));
+                                        await completionsQuery.refetch();
+                                        await progressQuery.refetch();
                                       } catch {
                                         setResultByEvent((r) => ({ ...r, [e.id]: { ok: false, isCorrect: false } }));
                                       } finally {
@@ -276,6 +396,46 @@ export default function VideoPage() {
             </div>
           </CardContent>
         </Card>
+
+        {activeEvent ? (
+          <VideoEventOverlay
+            event={activeEvent}
+            quiz={
+              activeQuiz
+                ? {
+                    id: activeQuiz.id,
+                    event_id: activeQuiz.event_id,
+                    question: activeQuiz.question,
+                    options: activeQuiz.options,
+                  }
+                : undefined
+            }
+            busy={eventsQuery.isLoading || quizzesQuery.isLoading || progressQuery.isLoading}
+            onSubmitQuiz={async (selectedIndex) => {
+              const res = await supabase.functions.invoke("quiz-attempt", {
+                body: { eventId: activeEvent.id, selectedIndex },
+              });
+              if (res.error) return { ok: false, isCorrect: false };
+              const r = { ok: true, isCorrect: Boolean((res.data as any)?.isCorrect) };
+              await completionsQuery.refetch();
+              await progressQuery.refetch();
+              return r;
+            }}
+            onClose={() => {
+              setActiveEventId(null);
+              // Resume playback after closing
+              setTimeout(() => {
+                void (async () => {
+                  try {
+                    await videoElRef.current?.play();
+                  } catch {
+                    // ignore autoplay restrictions
+                  }
+                })();
+              }, 0);
+            }}
+          />
+        ) : null}
       </div>
     </AppShell>
   );
