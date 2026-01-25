@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthProvider";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 type TimelineEventType = "quiz" | "exam" | "simulation";
 
@@ -36,6 +37,8 @@ type Quiz = {
 
 type ExamLaunch = {
   event_id: string;
+  user_id: string;
+  launched_at: string;
 };
 
 function fmt(seconds: number) {
@@ -104,7 +107,10 @@ export default function TeacherVideoTimeline() {
     queryKey: ["teacher", "video", videoId, "exam-launches", examEventIds.join(",")],
     enabled: canUse && examEventIds.length > 0,
     queryFn: async () => {
-      const res = await supabase.from("exam_launches").select("event_id").in("event_id", examEventIds);
+      const res = await supabase
+        .from("exam_launches")
+        .select("event_id,user_id,launched_at")
+        .in("event_id", examEventIds);
       if (res.error) throw res.error;
       return (res.data ?? []) as ExamLaunch[];
     },
@@ -116,6 +122,37 @@ export default function TeacherVideoTimeline() {
       counts.set(r.event_id, (counts.get(r.event_id) ?? 0) + 1);
     }
     return counts;
+  }, [examLaunchesQuery.data]);
+
+  const examAnalytics = useMemo(() => {
+    const rows = examLaunchesQuery.data ?? [];
+    const total = rows.length;
+    const uniqueStudents = new Set(rows.map((r) => r.user_id)).size;
+
+    // 14-day daily series
+    const days = 14;
+    const today = new Date();
+    const start = new Date(today);
+    start.setDate(start.getDate() - (days - 1));
+    start.setHours(0, 0, 0, 0);
+
+    const countsByDay = new Map<string, number>();
+    for (const r of rows) {
+      const d = new Date(r.launched_at);
+      d.setHours(0, 0, 0, 0);
+      if (d < start) continue;
+      const key = d.toISOString().slice(5, 10); // MM-DD
+      countsByDay.set(key, (countsByDay.get(key) ?? 0) + 1);
+    }
+
+    const series = Array.from({ length: days }).map((_, idx) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + idx);
+      const key = d.toISOString().slice(5, 10);
+      return { day: key, launches: countsByDay.get(key) ?? 0 };
+    });
+
+    return { total, uniqueStudents, series };
   }, [examLaunchesQuery.data]);
 
   const quizByEventId = useMemo(() => {
@@ -469,6 +506,54 @@ export default function TeacherVideoTimeline() {
                   <p className="text-xs text-muted-foreground">The file is stored and linked to the event payload.</p>
                 </div>
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Exam analytics</CardTitle>
+            <CardDescription>Launch counts are aggregated from student exam opens (last 14 days).</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {examEventIds.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No exam events in this video yet.</p>
+            ) : examLaunchesQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading analytics…</p>
+            ) : examLaunchesQuery.isError ? (
+              <p className="text-sm text-destructive">Failed to load analytics.</p>
+            ) : (
+              <>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-lg border p-4">
+                    <div className="text-xs text-muted-foreground">Total launches</div>
+                    <div className="text-2xl font-semibold">{examAnalytics.total}</div>
+                  </div>
+                  <div className="rounded-lg border p-4">
+                    <div className="text-xs text-muted-foreground">Unique students</div>
+                    <div className="text-2xl font-semibold">{examAnalytics.uniqueStudents}</div>
+                  </div>
+                </div>
+
+                <div className="h-56 rounded-lg border p-3">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={examAnalytics.series} margin={{ top: 10, left: 0, right: 10, bottom: 0 }}>
+                      <XAxis dataKey="day" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                      <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{
+                          background: "hsl(var(--background))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: 8,
+                          color: "hsl(var(--foreground))",
+                        }}
+                        labelStyle={{ color: "hsl(var(--foreground))" }}
+                      />
+                      <Line type="monotone" dataKey="launches" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
