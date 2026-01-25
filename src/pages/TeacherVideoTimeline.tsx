@@ -104,6 +104,15 @@ export default function TeacherVideoTimeline() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editAtSeconds, setEditAtSeconds] = useState<number>(0);
+  const [editRequired, setEditRequired] = useState(true);
+  const [editTitle, setEditTitle] = useState("");
+  const [editExamUrl, setEditExamUrl] = useState("");
+  const [editQuizQuestion, setEditQuizQuestion] = useState("");
+  const [editQuizOptionsText, setEditQuizOptionsText] = useState("");
+  const [editQuizCorrectIndex, setEditQuizCorrectIndex] = useState(0);
+
   // Add form
   const [type, setType] = useState<TimelineEventType>("quiz");
   const [atSeconds, setAtSeconds] = useState<number>(0);
@@ -127,6 +136,107 @@ export default function TeacherVideoTimeline() {
     });
     if (up.error) throw up.error;
     return supabase.storage.from("simulations").getPublicUrl(path).data.publicUrl;
+  }
+
+  function beginEdit(e: TimelineEvent) {
+    setEditingId(e.id);
+    setEditAtSeconds(e.at_seconds);
+    setEditRequired(e.required);
+    setEditTitle(e.title ?? "");
+    setEditExamUrl(e.type === "exam" ? (e.payload?.url ?? "") : "");
+
+    if (e.type === "quiz") {
+      const q = quizByEventId.get(e.id);
+      setEditQuizQuestion(q?.question ?? "");
+      setEditQuizOptionsText((q?.options ?? []).join("\n"));
+      setEditQuizCorrectIndex(q?.correct_index ?? 0);
+    } else {
+      setEditQuizQuestion("");
+      setEditQuizOptionsText("");
+      setEditQuizCorrectIndex(0);
+    }
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+  }
+
+  async function saveEdit(e: TimelineEvent) {
+    if (!canUse) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const nextPayload =
+        e.type === "exam"
+          ? { ...(e.payload ?? {}), url: editExamUrl.trim() }
+          : e.type === "simulation"
+            ? e.payload ?? {}
+            : e.payload ?? {};
+
+      const up = await supabase
+        .from("timeline_events")
+        .update({
+          at_seconds: Math.max(0, Math.floor(editAtSeconds)),
+          required: editRequired,
+          title: editTitle.trim() || null,
+          payload: nextPayload,
+        })
+        .eq("id", e.id);
+      if (up.error) throw up.error;
+
+      if (e.type === "quiz") {
+        const opts = editQuizOptionsText
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (!editQuizQuestion.trim() || opts.length < 2) throw new Error("Quiz needs a question and at least 2 options");
+        if (editQuizCorrectIndex < 0 || editQuizCorrectIndex >= opts.length) throw new Error("Correct option index is out of range");
+
+        const existing = quizByEventId.get(e.id);
+        if (existing) {
+          const qUp = await supabase
+            .from("quizzes")
+            .update({ question: editQuizQuestion.trim(), options: opts, correct_index: editQuizCorrectIndex })
+            .eq("id", existing.id);
+          if (qUp.error) throw qUp.error;
+        } else {
+          const qIns = await supabase.from("quizzes").insert({
+            event_id: e.id,
+            question: editQuizQuestion.trim(),
+            options: opts,
+            correct_index: editQuizCorrectIndex,
+          });
+          if (qIns.error) throw qIns.error;
+        }
+      }
+
+      await eventsQuery.refetch();
+      await quizzesQuery.refetch();
+      setEditingId(null);
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to save");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function replaceSimulationHtml(e: TimelineEvent, file: File) {
+    if (!canUse) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const url = await uploadSimulationHtml(file);
+      const up = await supabase
+        .from("timeline_events")
+        .update({ payload: { ...(e.payload ?? {}), simulation_url: url } })
+        .eq("id", e.id);
+      if (up.error) throw up.error;
+      await eventsQuery.refetch();
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to replace simulation");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function createEvent(payload: any) {
@@ -358,6 +468,7 @@ export default function TeacherVideoTimeline() {
                   const quiz = e.type === "quiz" ? quizByEventId.get(e.id) : undefined;
                   const exam = e.type === "exam" ? (e.payload?.url as string | undefined) : undefined;
                   const sim = e.type === "simulation" ? (e.payload?.simulation_url as string | undefined) : undefined;
+                  const isEditing = editingId === e.id;
                   return (
                     <div key={e.id} className="rounded-lg border p-4">
                       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -374,11 +485,112 @@ export default function TeacherVideoTimeline() {
                           {sim ? <div className="text-xs text-muted-foreground">Simulation: {sim}</div> : null}
                         </div>
                         <div className="flex gap-2">
+                          {isEditing ? (
+                            <>
+                              <Button size="sm" variant="secondary" disabled={!canUse || busy} onClick={() => saveEdit(e)}>
+                                Save
+                              </Button>
+                              <Button size="sm" variant="secondary" disabled={!canUse || busy} onClick={cancelEdit}>
+                                Cancel
+                              </Button>
+                            </>
+                          ) : (
+                            <Button size="sm" variant="secondary" disabled={!canUse || busy} onClick={() => beginEdit(e)}>
+                              Edit
+                            </Button>
+                          )}
                           <Button variant="destructive" size="sm" disabled={!canUse || busy} onClick={() => deleteEvent(e)}>
                             Delete
                           </Button>
                         </div>
                       </div>
+
+                      {isEditing ? (
+                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Timestamp (seconds)</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={editAtSeconds}
+                              disabled={!canUse || busy}
+                              onChange={(ev) => setEditAtSeconds(Number(ev.target.value))}
+                            />
+                            <p className="text-xs text-muted-foreground">{fmt(Math.max(0, Math.floor(editAtSeconds || 0)))}</p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Title (optional)</Label>
+                            <Input value={editTitle} disabled={!canUse || busy} onChange={(ev) => setEditTitle(ev.target.value)} />
+                          </div>
+                          <div className="flex items-center justify-between rounded-lg border p-3 md:col-span-2">
+                            <div>
+                              <div className="text-sm font-medium">Required</div>
+                              <div className="text-xs text-muted-foreground">Used later for seek-lock / completion gating.</div>
+                            </div>
+                            <Switch checked={editRequired} disabled={!canUse || busy} onCheckedChange={setEditRequired} />
+                          </div>
+
+                          {e.type === "exam" ? (
+                            <div className="space-y-2 md:col-span-2">
+                              <Label>Exam URL (testmoz.com or rayvila.com only)</Label>
+                              <Input
+                                value={editExamUrl}
+                                disabled={!canUse || busy}
+                                onChange={(ev) => setEditExamUrl(ev.target.value)}
+                              />
+                              <p className="text-xs text-muted-foreground">Validated by the backend on save.</p>
+                            </div>
+                          ) : null}
+
+                          {e.type === "simulation" ? (
+                            <div className="space-y-2 md:col-span-2">
+                              <Label>Replace simulation HTML (.html)</Label>
+                              <Input
+                                type="file"
+                                accept="text/html,.html"
+                                disabled={!canUse || busy}
+                                onChange={async (ev) => {
+                                  const file = ev.target.files?.[0];
+                                  if (!file) return;
+                                  await replaceSimulationHtml(e, file);
+                                  ev.target.value = "";
+                                }}
+                              />
+                            </div>
+                          ) : null}
+
+                          {e.type === "quiz" ? (
+                            <div className="space-y-3 md:col-span-2">
+                              <div className="space-y-2">
+                                <Label>Question</Label>
+                                <Input
+                                  value={editQuizQuestion}
+                                  disabled={!canUse || busy}
+                                  onChange={(ev) => setEditQuizQuestion(ev.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Options (one per line)</Label>
+                                <Textarea
+                                  value={editQuizOptionsText}
+                                  disabled={!canUse || busy}
+                                  onChange={(ev) => setEditQuizOptionsText(ev.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Correct option index (0-based)</Label>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  value={editQuizCorrectIndex}
+                                  disabled={!canUse || busy}
+                                  onChange={(ev) => setEditQuizCorrectIndex(Number(ev.target.value))}
+                                />
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}
