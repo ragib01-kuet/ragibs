@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthProvider";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { VideoEventOverlay } from "@/components/VideoEventOverlay";
 
 type TimelineEventType = "quiz" | "exam" | "simulation";
 
@@ -67,7 +68,7 @@ export default function TeacherVideoTimeline() {
     queryKey: ["teacher", "video", videoId],
     enabled: canUse,
     queryFn: async () => {
-      const res = await supabase.from("videos").select("id,title,course_id").eq("id", videoId!).maybeSingle();
+      const res = await supabase.from("videos").select("id,title,course_id,video_url").eq("id", videoId!).maybeSingle();
       if (res.error) throw res.error;
       return res.data;
     },
@@ -160,6 +161,35 @@ export default function TeacherVideoTimeline() {
     for (const q of quizzesQuery.data ?? []) map.set(q.event_id, q);
     return map;
   }, [quizzesQuery.data]);
+
+  // Timeline Editor v2: preview video + scrubber + draggable event markers
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const timelineRef = useRef<HTMLDivElement | null>(null);
+  const durationRef = useRef<number>(0);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [previewEnabled, setPreviewEnabled] = useState(true);
+  const [previewEventId, setPreviewEventId] = useState<string | null>(null);
+  const lastTriggeredAtRef = useRef<number>(-1);
+  const draggingIdRef = useRef<string | null>(null);
+
+  const previewEvent = useMemo(() => {
+    const list = eventsQuery.data ?? [];
+    return list.find((e) => e.id === previewEventId) ?? null;
+  }, [eventsQuery.data, previewEventId]);
+
+  const previewQuiz = useMemo(() => {
+    if (!previewEvent || previewEvent.type !== "quiz") return undefined;
+    const q = quizByEventId.get(previewEvent.id);
+    return q
+      ? {
+          id: q.id,
+          event_id: q.event_id,
+          question: q.question,
+          options: q.options,
+        }
+      : undefined;
+  }, [previewEvent, quizByEventId]);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -375,6 +405,74 @@ export default function TeacherVideoTimeline() {
 
   const v = videoQuery.data;
 
+  // Keep duration/current time synced
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    const onLoaded = () => {
+      const d = Number.isFinite(el.duration) ? el.duration : 0;
+      durationRef.current = d;
+      setDuration(d);
+    };
+    const onTime = () => {
+      setCurrentTime(el.currentTime || 0);
+
+      if (!previewEnabled) return;
+      if (previewEventId) return;
+
+      const events = (eventsQuery.data ?? []).slice().sort((a, b) => a.at_seconds - b.at_seconds);
+      if (events.length === 0) return;
+
+      const t = el.currentTime;
+      const next = events.find((ev) => t >= ev.at_seconds && ev.at_seconds > lastTriggeredAtRef.current + 0.25);
+      if (next) {
+        lastTriggeredAtRef.current = next.at_seconds;
+        el.pause();
+        setPreviewEventId(next.id);
+      }
+    };
+    const onSeeking = () => {
+      // If teacher seeks around, allow re-triggering from earlier points
+      lastTriggeredAtRef.current = Math.min(lastTriggeredAtRef.current, el.currentTime - 0.5);
+    };
+
+    el.addEventListener("loadedmetadata", onLoaded);
+    el.addEventListener("timeupdate", onTime);
+    el.addEventListener("seeking", onSeeking);
+    return () => {
+      el.removeEventListener("loadedmetadata", onLoaded);
+      el.removeEventListener("timeupdate", onTime);
+      el.removeEventListener("seeking", onSeeking);
+    };
+  }, [eventsQuery.data, previewEnabled, previewEventId]);
+
+  async function updateEventTimestamp(eventId: string, atSecondsNext: number) {
+    if (!canUse) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const up = await supabase
+        .from("timeline_events")
+        .update({ at_seconds: Math.max(0, Math.floor(atSecondsNext)) })
+        .eq("id", eventId);
+      if (up.error) throw up.error;
+      await eventsQuery.refetch();
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to update timestamp");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function secondsFromClientX(clientX: number) {
+    const el = timelineRef.current;
+    const d = durationRef.current || duration;
+    if (!el || !d) return 0;
+    const rect = el.getBoundingClientRect();
+    const x = Math.min(rect.width, Math.max(0, clientX - rect.left));
+    return (x / rect.width) * d;
+  }
+
   return (
     <AppShell title="Teacher Studio · Timeline">
       <div className="space-y-6">
@@ -390,6 +488,130 @@ export default function TeacherVideoTimeline() {
         </div>
 
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Timeline Editor v2</CardTitle>
+            <CardDescription>Preview video, click-to-seek, drag events to new timestamps, and preview overlays.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {v?.video_url ? (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm text-muted-foreground">
+                    {fmt(Math.floor(currentTime))} / {duration ? fmt(Math.floor(duration)) : "0:00"}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant={previewEnabled ? "default" : "secondary"}
+                      size="sm"
+                      onClick={() => setPreviewEnabled((s) => !s)}
+                      disabled={busy}
+                    >
+                      {previewEnabled ? "Preview overlays: On" : "Preview overlays: Off"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        const el = videoRef.current;
+                        if (!el) return;
+                        void el.play().catch(() => {});
+                      }}
+                      disabled={busy}
+                    >
+                      Play
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        videoRef.current?.pause();
+                      }}
+                      disabled={busy}
+                    >
+                      Pause
+                    </Button>
+                  </div>
+                </div>
+
+                <video ref={videoRef} src={v.video_url} controls className="w-full rounded-md border" />
+
+                <div className="space-y-2">
+                  <div
+                    ref={(node) => {
+                      timelineRef.current = node;
+                    }}
+                    className="relative h-12 w-full rounded-md border bg-muted"
+                    onClick={(e) => {
+                      const el = videoRef.current;
+                      if (!el) return;
+                      const next = secondsFromClientX(e.clientX);
+                      el.currentTime = next;
+                      setCurrentTime(next);
+                    }}
+                  >
+                    {/* Playhead */}
+                    <div
+                      className="absolute top-0 h-full w-0.5 bg-primary"
+                      style={{ left: duration ? `${(currentTime / duration) * 100}%` : "0%" }}
+                    />
+
+                    {/* Event markers */}
+                    {(eventsQuery.data ?? []).map((ev) => {
+                      const leftPct = duration ? (ev.at_seconds / duration) * 100 : 0;
+                      return (
+                        <button
+                          key={ev.id}
+                          type="button"
+                          title={`${fmt(ev.at_seconds)} · ${ev.type}`}
+                          className="absolute top-1/2 h-6 w-2 -translate-y-1/2 rounded-full border bg-background"
+                          style={{ left: `${Math.max(0, Math.min(100, leftPct))}%` }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const el = videoRef.current;
+                            if (el) {
+                              el.currentTime = ev.at_seconds;
+                              setCurrentTime(ev.at_seconds);
+                            }
+                            // Quick preview overlay
+                            setPreviewEventId(ev.id);
+                            videoRef.current?.pause();
+                          }}
+                          onPointerDown={(e) => {
+                            e.stopPropagation();
+                            if (!canUse || busy) return;
+                            draggingIdRef.current = ev.id;
+                            (e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
+                          }}
+                          onPointerMove={(e) => {
+                            if (draggingIdRef.current !== ev.id) return;
+                            // Live scrub while dragging
+                            const next = secondsFromClientX(e.clientX);
+                            const el = videoRef.current;
+                            if (el) {
+                              el.currentTime = next;
+                              setCurrentTime(next);
+                            }
+                          }}
+                          onPointerUp={async (e) => {
+                            if (draggingIdRef.current !== ev.id) return;
+                            draggingIdRef.current = null;
+                            const next = secondsFromClientX(e.clientX);
+                            await updateEventTimestamp(ev.id, next);
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Tip: click marker to preview; drag marker to change timestamp.</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Add a video URL (or upload a video) to enable preview + timeline editor.</p>
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -712,6 +934,27 @@ export default function TeacherVideoTimeline() {
           </CardContent>
         </Card>
       </div>
+
+      {previewEvent ? (
+        <VideoEventOverlay
+          event={previewEvent}
+          quiz={previewQuiz}
+          previewOnly
+          busy={busy || eventsQuery.isLoading || quizzesQuery.isLoading}
+          completed={false}
+          onSubmitQuiz={async () => ({ ok: true, isCorrect: true })}
+          onOpenExam={async (url) => {
+            window.open(url, "_blank", "noopener,noreferrer");
+          }}
+          onComplete={async () => ({ ok: true })}
+          onClose={() => {
+            setPreviewEventId(null);
+            setTimeout(() => {
+              void videoRef.current?.play().catch(() => {});
+            }, 0);
+          }}
+        />
+      ) : null}
     </AppShell>
   );
 }
