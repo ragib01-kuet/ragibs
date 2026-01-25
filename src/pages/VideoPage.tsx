@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthProvider";
 import { VideoEventOverlay } from "@/components/VideoEventOverlay";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
 
 type Video = {
   id: string;
@@ -53,6 +54,24 @@ function fmt(seconds: number) {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function getYoutubeEmbedUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, "");
+    if (host === "youtu.be") {
+      const id = u.pathname.replace(/^\//, "").split("/")[0];
+      return id ? `https://www.youtube.com/embed/${id}` : null;
+    }
+    if (host === "youtube.com" || host === "m.youtube.com") {
+      const id = u.searchParams.get("v") ?? "";
+      return id ? `https://www.youtube.com/embed/${id}` : null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export default function VideoPage() {
@@ -151,6 +170,9 @@ export default function VideoPage() {
 
   const v = videoQuery.data;
   const events = eventsQuery.data ?? [];
+
+  const videoUrl = v?.video_url ?? null;
+  const youtubeEmbedUrl = useMemo(() => (videoUrl ? getYoutubeEmbedUrl(videoUrl) : null), [videoUrl]);
 
   const teacherQuery = useQuery({
     queryKey: ["teacher-public", v?.owner_id],
@@ -265,14 +287,33 @@ export default function VideoPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg border bg-muted p-4">
-              {v?.video_url ? (
+              {videoUrl ? (
                 <div className="space-y-2">
-                  <video
-                    ref={videoElRef}
-                    src={v.video_url}
-                    controls
-                    className="w-full rounded-md"
-                  />
+                  {youtubeEmbedUrl ? (
+                    <AspectRatio ratio={16 / 9}>
+                      <iframe
+                        title={v?.title ? `Video: ${v.title}` : "Video"}
+                        src={youtubeEmbedUrl}
+                        className="h-full w-full rounded-md"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        referrerPolicy="no-referrer"
+                      />
+                    </AspectRatio>
+                  ) : (
+                    <video
+                      ref={videoElRef}
+                      src={videoUrl}
+                      controls
+                      playsInline
+                      className="w-full rounded-md"
+                      onError={() => {
+                        // Surface a useful hint; common causes: unpublished/private URL, wrong host (e.g. YouTube), or missing content-type.
+                        // eslint-disable-next-line no-console
+                        console.error("Video failed to load", { src: videoUrl });
+                      }}
+                    />
+                  )}
                   <div className="text-xs text-muted-foreground">
                     {userId ? (
                       <>Seek lock enabled · Unlocked until {fmt(unlockedUntil)}</>
