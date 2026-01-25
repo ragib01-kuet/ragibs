@@ -209,6 +209,36 @@ export type Database = {
         }
         Relationships: []
       }
+      teacher_role_requests: {
+        Row: {
+          created_at: string
+          id: string
+          message: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       timeline_events: {
         Row: {
           at_seconds: number

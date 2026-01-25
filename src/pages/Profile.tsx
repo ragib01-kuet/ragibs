@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -9,18 +9,48 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthProvider";
 
+type TeacherRequest = {
+  id: string;
+  status: "pending" | "approved" | "rejected";
+  created_at: string;
+  message: string | null;
+};
+
 export default function Profile() {
   const navigate = useNavigate();
-  const { session, profile, refresh, loading } = useAuth();
+  const { session, profile, refresh, loading, roles } = useAuth();
   const [displayName, setDisplayName] = useState(profile?.display_name ?? "");
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [teacherRequest, setTeacherRequest] = useState<TeacherRequest | null>(null);
+  const [teacherRequestMessage, setTeacherRequestMessage] = useState("");
+  const [teacherBusy, setTeacherBusy] = useState(false);
+  const [teacherError, setTeacherError] = useState<string | null>(null);
 
   const avatarUrl = profile?.avatar_url ?? null;
   const userId = session?.user?.id ?? null;
 
   const canEdit = useMemo(() => Boolean(session && profile && userId), [session, profile, userId]);
+  const isTeacher = roles.includes("teacher") || roles.includes("admin");
+
+  useEffect(() => {
+    if (!userId) return;
+    void (async () => {
+      try {
+        const res = await supabase
+          .from("teacher_role_requests")
+          .select("id,status,created_at,message")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (res.error) throw res.error;
+        setTeacherRequest(((res.data ?? [])[0] as TeacherRequest | undefined) ?? null);
+      } catch {
+        // best-effort
+      }
+    })();
+  }, [userId]);
 
   if (!loading && !session) {
     navigate("/login");
@@ -138,6 +168,65 @@ export default function Profile() {
             >
               Save
             </Button>
+
+            <div className="pt-4">
+              <div className="text-sm font-medium">Teacher access</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                {isTeacher
+                  ? "You already have teacher access."
+                  : teacherRequest?.status === "pending"
+                    ? "Your request is pending review."
+                    : teacherRequest?.status === "approved"
+                      ? "Approved. Sign out and sign back in if the Studio hasn’t appeared yet."
+                      : teacherRequest?.status === "rejected"
+                        ? "Your request was rejected. You can request again."
+                        : "Request access to create and manage courses."}
+              </div>
+
+              {teacherError ? <p className="mt-2 text-sm text-destructive">{teacherError}</p> : null}
+
+              {!isTeacher ? (
+                <div className="mt-3 space-y-2">
+                  <Label htmlFor="teacherReq">Message (optional)</Label>
+                  <Textarea
+                    id="teacherReq"
+                    value={teacherRequestMessage}
+                    disabled={!canEdit || teacherBusy || teacherRequest?.status === "pending"}
+                    onChange={(e) => setTeacherRequestMessage(e.target.value)}
+                    placeholder="Tell the admin why you need teacher access…"
+                  />
+                  <Button
+                    disabled={!canEdit || teacherBusy || teacherRequest?.status === "pending"}
+                    onClick={async () => {
+                      if (!userId) return;
+                      setTeacherBusy(true);
+                      setTeacherError(null);
+                      try {
+                        const ins = await supabase
+                          .from("teacher_role_requests")
+                          .insert({ user_id: userId, message: teacherRequestMessage.trim() || null });
+                        if (ins.error) throw ins.error;
+                        const res = await supabase
+                          .from("teacher_role_requests")
+                          .select("id,status,created_at,message")
+                          .eq("user_id", userId)
+                          .order("created_at", { ascending: false })
+                          .limit(1);
+                        if (res.error) throw res.error;
+                        setTeacherRequest(((res.data ?? [])[0] as TeacherRequest | undefined) ?? null);
+                        setTeacherRequestMessage("");
+                      } catch (e: any) {
+                        setTeacherError(e?.message ?? "Failed to request teacher access");
+                      } finally {
+                        setTeacherBusy(false);
+                      }
+                    }}
+                  >
+                    Request Teacher Access
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           </CardContent>
         </Card>
       </div>
