@@ -35,6 +35,7 @@ export function VideoEventOverlay({
   onComplete,
   completed,
   onClose,
+  previewOnly,
 }: {
   event: OverlayEvent;
   quiz?: OverlayQuiz;
@@ -44,6 +45,7 @@ export function VideoEventOverlay({
   onComplete: () => Promise<{ ok: boolean }>;
   completed: boolean;
   onClose: () => void;
+  previewOnly?: boolean;
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [result, setResult] = useState<{ ok: boolean; isCorrect: boolean } | null>(null);
@@ -76,7 +78,10 @@ export function VideoEventOverlay({
             {fmt(event.at_seconds)} · {event.type}
             {event.required ? "" : " (optional)"}
           </CardTitle>
-          <CardDescription>{event.title ?? ""}</CardDescription>
+          <CardDescription>
+            {event.title ?? ""}
+            {previewOnly ? " · Preview mode" : ""}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {event.type === "quiz" ? (
@@ -102,6 +107,10 @@ export function VideoEventOverlay({
                     disabled={busy || submitting || selectedIndex === null}
                     onClick={async () => {
                       if (selectedIndex === null) return;
+                      if (previewOnly) {
+                        onClose();
+                        return;
+                      }
                       setSubmitting(true);
                       setResult(null);
                       try {
@@ -114,13 +123,13 @@ export function VideoEventOverlay({
                       }
                     }}
                   >
-                    {submitting ? "Submitting…" : "Submit"}
+                    {previewOnly ? "Close" : submitting ? "Submitting…" : "Submit"}
                   </Button>
                   <Button variant="secondary" disabled={busy || submitting} onClick={onClose}>
                     Close
                   </Button>
                 </div>
-                {result ? (
+                {!previewOnly && result ? (
                   <p className={result.ok && result.isCorrect ? "text-sm text-muted-foreground" : "text-sm text-destructive"}>
                     {result.ok ? (result.isCorrect ? "Correct." : "Incorrect.") : "Submit failed."}
                   </p>
@@ -146,7 +155,11 @@ export function VideoEventOverlay({
               ) : (
                 <p className="text-sm text-muted-foreground">Exam URL missing.</p>
               )}
-              {event.required ? (
+              {previewOnly ? (
+                <Button onClick={onClose} disabled={busy}>
+                  Close
+                </Button>
+              ) : event.required ? (
                 <Button
                   onClick={async () => {
                     const r = await onComplete();
@@ -174,7 +187,11 @@ export function VideoEventOverlay({
                         Open in new tab
                       </a>
                     </Button>
-                    {event.required ? (
+                    {previewOnly ? (
+                      <Button onClick={onClose} disabled={busy}>
+                        Close
+                      </Button>
+                    ) : event.required ? (
                       <Button
                         onClick={async () => {
                           const r = await onComplete();
