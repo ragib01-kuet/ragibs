@@ -3,15 +3,25 @@ import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 
 type Course = {
   id: string;
+  owner_id: string;
   title: string;
   description: string | null;
   published: boolean;
   thumbnail_url: string | null;
   tags: string[];
+};
+
+type TeacherPublicProfile = {
+  user_id: string;
+  display_name: string;
+  headline: string | null;
+  bio: string | null;
+  avatar_url: string | null;
 };
 
 type Video = {
@@ -32,7 +42,7 @@ export default function CourseDetail() {
     queryFn: async () => {
       const res = await supabase
         .from("courses")
-        .select("id,title,description,published,thumbnail_url,tags")
+        .select("id,owner_id,title,description,published,thumbnail_url,tags")
         .eq("id", courseId!)
         .maybeSingle();
       if (res.error) throw res.error;
@@ -56,6 +66,21 @@ export default function CourseDetail() {
   });
 
   const title = courseQuery.data?.title ? `Course · ${courseQuery.data.title}` : "Course";
+
+  const teacherQuery = useQuery({
+    queryKey: ["teacher-public", courseQuery.data?.owner_id],
+    enabled: Boolean(courseQuery.data?.owner_id),
+    queryFn: async () => {
+      const ownerId = courseQuery.data!.owner_id;
+      const res = await supabase
+        .from("teacher_public_profiles")
+        .select("user_id,display_name,headline,bio,avatar_url")
+        .eq("user_id", ownerId)
+        .maybeSingle();
+      if (res.error) throw res.error;
+      return (res.data ?? null) as TeacherPublicProfile | null;
+    },
+  });
 
   return (
     <AppShell title={title}>
@@ -86,6 +111,11 @@ export default function CourseDetail() {
                 />
               </div>
             ) : null}
+
+            <Separator className="my-4" />
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="md:col-span-2">
             {videosQuery.isLoading ? (
               <p className="text-sm text-muted-foreground">Loading videos…</p>
             ) : videosQuery.isError ? (
@@ -109,6 +139,42 @@ export default function CourseDetail() {
                 ))}
               </div>
             )}
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Teacher</CardTitle>
+                  <CardDescription>Course author</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {teacherQuery.isLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading…</p>
+                  ) : teacherQuery.isError ? (
+                    <p className="text-sm text-muted-foreground">Teacher profile not available.</p>
+                  ) : teacherQuery.data ? (
+                    <div className="space-y-2">
+                      {teacherQuery.data.avatar_url ? (
+                        <img
+                          src={teacherQuery.data.avatar_url}
+                          alt={`${teacherQuery.data.display_name} avatar`}
+                          className="h-12 w-12 rounded-full border object-cover"
+                          loading="lazy"
+                        />
+                      ) : null}
+                      <div>
+                        <div className="text-sm font-medium">{teacherQuery.data.display_name}</div>
+                        {teacherQuery.data.headline ? (
+                          <div className="text-xs text-muted-foreground">{teacherQuery.data.headline}</div>
+                        ) : null}
+                      </div>
+                      {teacherQuery.data.bio ? <p className="text-sm text-muted-foreground">{teacherQuery.data.bio}</p> : null}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Teacher profile not set yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </CardContent>
         </Card>
       </div>
