@@ -33,10 +33,10 @@ export function AppShell({ title, children }: { title?: string; children: React.
               Ragib’s World Courses
             </Link>
             <nav className="hidden items-center gap-4 md:flex">
-              <NavItem to="/">Courses</NavItem>
+              <NavItem to="/courses">Courses</NavItem>
               {isTeacher && <NavItem to="/studio">Teacher Studio</NavItem>}
               {isTeacher && <NavItem to="/studio/analytics">Analytics</NavItem>}
-              {isAdmin && <NavItem to="/admin/invites">Admin</NavItem>}
+              {isAdmin && <NavItem to="/admin">Admin</NavItem>}
               {isAdmin && <NavItem to="/admin/teacher-requests">Teacher Requests</NavItem>}
               {session && <NavItem to="/profile">Profile</NavItem>}
             </nav>
