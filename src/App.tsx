@@ -5,11 +5,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthProvider";
 import Index from "./pages/Index";
+import Courses from "./pages/Courses";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
 import AdminInvites from "./pages/AdminInvites";
 import AdminTeacherRequests from "./pages/AdminTeacherRequests";
+import AdminDashboard from "./pages/AdminDashboard";
 import CourseDetail from "./pages/CourseDetail";
 import VideoPage from "./pages/VideoPage";
 import TeacherStudio from "./pages/TeacherStudio";
@@ -28,6 +30,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/courses" element={<Courses />} />
             <Route path="/courses/:courseId" element={<CourseDetail />} />
             <Route path="/courses/:courseId/videos/:videoId" element={<VideoPage />} />
             <Route path="/studio" element={<TeacherStudio />} />
@@ -36,6 +39,7 @@ const App = () => (
             <Route path="/studio/courses/:courseId/videos/:videoId/timeline" element={<TeacherVideoTimeline />} />
             <Route path="/login" element={<Login />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/invites" element={<AdminInvites />} />
             <Route path="/admin/teacher-requests" element={<AdminTeacherRequests />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
