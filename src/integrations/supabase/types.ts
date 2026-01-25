@@ -335,10 +335,12 @@ export type Database = {
           created_at: string
           description: string | null
           duration_seconds: number | null
+          exam_url: string | null
           id: string
           lecture_sheet_url: string | null
           owner_id: string
           published: boolean
+          simulation_url: string | null
           title: string
           updated_at: string
           video_url: string | null
@@ -348,10 +350,12 @@ export type Database = {
           created_at?: string
           description?: string | null
           duration_seconds?: number | null
+          exam_url?: string | null
           id?: string
           lecture_sheet_url?: string | null
           owner_id: string
           published?: boolean
+          simulation_url?: string | null
           title: string
           updated_at?: string
           video_url?: string | null
@@ -361,10 +365,12 @@ export type Database = {
           created_at?: string
           description?: string | null
           duration_seconds?: number | null
+          exam_url?: string | null
           id?: string
           lecture_sheet_url?: string | null
           owner_id?: string
           published?: boolean
+          simulation_url?: string | null
           title?: string
           updated_at?: string
           video_url?: string | null

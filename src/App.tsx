@@ -11,6 +11,8 @@ import Profile from "./pages/Profile";
 import AdminInvites from "./pages/AdminInvites";
 import CourseDetail from "./pages/CourseDetail";
 import VideoPage from "./pages/VideoPage";
+import TeacherStudio from "./pages/TeacherStudio";
+import TeacherCourseManage from "./pages/TeacherCourseManage";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +27,8 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/courses/:courseId" element={<CourseDetail />} />
             <Route path="/courses/:courseId/videos/:videoId" element={<VideoPage />} />
+            <Route path="/studio" element={<TeacherStudio />} />
+            <Route path="/studio/courses/:courseId" element={<TeacherCourseManage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/admin/invites" element={<AdminInvites />} />

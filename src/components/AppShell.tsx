@@ -22,6 +22,7 @@ function NavItem({ to, children }: { to: string; children: React.ReactNode }) {
 export function AppShell({ title, children }: { title?: string; children: React.ReactNode }) {
   const { session, roles, profile, signOut } = useAuth();
   const isAdmin = roles.includes("admin");
+  const isTeacher = roles.includes("teacher") || isAdmin;
 
   return (
     <div className="min-h-screen bg-background">
@@ -33,6 +34,7 @@ export function AppShell({ title, children }: { title?: string; children: React.
             </Link>
             <nav className="hidden items-center gap-4 md:flex">
               <NavItem to="/">Courses</NavItem>
+              {isTeacher && <NavItem to="/studio">Teacher Studio</NavItem>}
               {isAdmin && <NavItem to="/admin/invites">Admin</NavItem>}
               {session && <NavItem to="/profile">Profile</NavItem>}
             </nav>
