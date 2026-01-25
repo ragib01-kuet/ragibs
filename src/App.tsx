@@ -12,6 +12,7 @@ import Profile from "./pages/Profile";
 import AdminInvites from "./pages/AdminInvites";
 import AdminTeacherRequests from "./pages/AdminTeacherRequests";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminLogin from "./pages/AdminLogin";
 import CourseDetail from "./pages/CourseDetail";
 import VideoPage from "./pages/VideoPage";
 import TeacherStudio from "./pages/TeacherStudio";
@@ -40,6 +41,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/admin" element={<AdminDashboard />} />
+             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/invites" element={<AdminInvites />} />
             <Route path="/admin/teacher-requests" element={<AdminTeacherRequests />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
