@@ -310,8 +310,8 @@ export default function VideoPage() {
                               <Button
                                 variant="secondary"
                                 onClick={async () => {
-                                  await trackExamLaunch(e.id);
-                                  window.open(examUrl, "_blank", "noopener,noreferrer");
+                                  videoElRef.current?.pause();
+                                  setActiveEventId(e.id);
                                 }}
                               >
                                 Open exam

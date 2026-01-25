@@ -52,6 +52,8 @@ export function VideoEventOverlay({
   const [submitting, setSubmitting] = useState(false);
   const [simulationLoaded, setSimulationLoaded] = useState(false);
   const [showSimulationFallbackHint, setShowSimulationFallbackHint] = useState(false);
+  const [examLoaded, setExamLoaded] = useState(false);
+  const [showExamFallbackHint, setShowExamFallbackHint] = useState(false);
 
   const examUrl = useMemo(() => (event.type === "exam" ? (event.payload?.url as string | undefined) : undefined), [event]);
   const simulationUrl = useMemo(
@@ -69,6 +71,17 @@ export function VideoEventOverlay({
     }, 9000);
     return () => window.clearTimeout(t);
   }, [event.id, event.type, simulationUrl]);
+
+  useEffect(() => {
+    if (event.type !== "exam") return;
+    setExamLoaded(false);
+    setShowExamFallbackHint(false);
+
+    const t = window.setTimeout(() => {
+      setShowExamFallbackHint(true);
+    }, 9000);
+    return () => window.clearTimeout(t);
+  }, [event.id, event.type, examUrl]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur">
@@ -141,38 +154,61 @@ export function VideoEventOverlay({
           ) : null}
 
           {event.type === "exam" ? (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="w-full space-y-3">
               {examUrl ? (
-                <Button
-                  variant="secondary"
-                  disabled={busy}
-                  onClick={async () => {
-                    await onOpenExam(examUrl);
-                  }}
-                >
-                  Open exam
-                </Button>
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={async () => {
+                        await onOpenExam(examUrl);
+                      }}
+                    >
+                      Open in new tab
+                    </Button>
+
+                    {previewOnly ? (
+                      <Button onClick={onClose} disabled={busy}>
+                        Close
+                      </Button>
+                    ) : event.required ? (
+                      <Button
+                        onClick={async () => {
+                          const r = await onComplete();
+                          if (r.ok) onClose();
+                        }}
+                        disabled={busy || completed}
+                      >
+                        {completed ? "Completed" : "Mark complete"}
+                      </Button>
+                    ) : (
+                      <Button onClick={onClose} disabled={busy}>
+                        Back to video
+                      </Button>
+                    )}
+                  </div>
+
+                  {!examLoaded ? <p className="text-sm text-muted-foreground">Loading exam…</p> : null}
+                  {showExamFallbackHint && !examLoaded ? (
+                    <p className="text-sm text-muted-foreground">If it doesn’t load here, use “Open in new tab”.</p>
+                  ) : null}
+
+                  <div className="overflow-hidden rounded-md border">
+                    <iframe
+                      key={examUrl}
+                      title={event.title ? `Exam: ${event.title}` : "Exam"}
+                      src={examUrl}
+                      className="h-[60vh] w-full"
+                      sandbox="allow-scripts allow-forms allow-same-origin"
+                      referrerPolicy="no-referrer"
+                      loading="lazy"
+                      onLoad={() => setExamLoaded(true)}
+                    />
+                  </div>
+                </>
               ) : (
                 <p className="text-sm text-muted-foreground">Exam URL missing.</p>
-              )}
-              {previewOnly ? (
-                <Button onClick={onClose} disabled={busy}>
-                  Close
-                </Button>
-              ) : event.required ? (
-                <Button
-                  onClick={async () => {
-                    const r = await onComplete();
-                    if (r.ok) onClose();
-                  }}
-                  disabled={busy || completed}
-                >
-                  {completed ? "Completed" : "Mark complete"}
-                </Button>
-              ) : (
-                <Button onClick={onClose} disabled={busy}>
-                  Continue
-                </Button>
               )}
             </div>
           ) : null}
