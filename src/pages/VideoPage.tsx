@@ -13,11 +13,20 @@ import { VideoEventOverlay } from "@/components/VideoEventOverlay";
 type Video = {
   id: string;
   course_id: string;
+  owner_id: string;
   title: string;
   description: string | null;
   video_url: string | null;
   lecture_sheet_url: string | null;
   duration_seconds: number | null;
+};
+
+type TeacherPublicProfile = {
+  user_id: string;
+  display_name: string;
+  headline: string | null;
+  bio: string | null;
+  avatar_url: string | null;
 };
 
 type TimelineEventType = "quiz" | "exam" | "simulation";
@@ -65,7 +74,7 @@ export default function VideoPage() {
     queryFn: async () => {
       const res = await supabase
         .from("videos")
-        .select("id,course_id,title,description,video_url,lecture_sheet_url,duration_seconds")
+        .select("id,course_id,owner_id,title,description,video_url,lecture_sheet_url,duration_seconds")
         .eq("id", videoId!)
         .maybeSingle();
       if (res.error) throw res.error;
@@ -142,6 +151,20 @@ export default function VideoPage() {
 
   const v = videoQuery.data;
   const events = eventsQuery.data ?? [];
+
+  const teacherQuery = useQuery({
+    queryKey: ["teacher-public", v?.owner_id],
+    enabled: Boolean(v?.owner_id),
+    queryFn: async () => {
+      const res = await supabase
+        .from("teacher_public_profiles")
+        .select("user_id,display_name,headline,bio,avatar_url")
+        .eq("user_id", v!.owner_id)
+        .maybeSingle();
+      if (res.error) throw res.error;
+      return (res.data ?? null) as TeacherPublicProfile | null;
+    },
+  });
 
   const unlockedUntil = useMemo(() => {
     const fromDb = progressQuery.data?.unlocked_until_seconds ?? 0;
@@ -398,6 +421,40 @@ export default function VideoPage() {
             </div>
 
             <Separator />
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Teacher</CardTitle>
+                <CardDescription>Lesson author</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {teacherQuery.isLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : teacherQuery.isError ? (
+                  <p className="text-sm text-muted-foreground">Teacher profile not available.</p>
+                ) : teacherQuery.data ? (
+                  <div className="flex flex-wrap items-start gap-3">
+                    {teacherQuery.data.avatar_url ? (
+                      <img
+                        src={teacherQuery.data.avatar_url}
+                        alt={`${teacherQuery.data.display_name} avatar`}
+                        className="h-12 w-12 rounded-full border object-cover"
+                        loading="lazy"
+                      />
+                    ) : null}
+                    <div className="min-w-[220px] flex-1">
+                      <div className="text-sm font-medium">{teacherQuery.data.display_name}</div>
+                      {teacherQuery.data.headline ? (
+                        <div className="text-xs text-muted-foreground">{teacherQuery.data.headline}</div>
+                      ) : null}
+                      {teacherQuery.data.bio ? <p className="mt-2 text-sm text-muted-foreground">{teacherQuery.data.bio}</p> : null}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Teacher profile not set yet.</p>
+                )}
+              </CardContent>
+            </Card>
 
             <div className="grid gap-3 md:grid-cols-2">
               <Card>

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Demo Simulation</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+      }
+      .card {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 20px;
+        border: 1px solid rgba(128, 128, 128, 0.35);
+        border-radius: 12px;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 10px;
+      }
+      p {
+        margin: 0 0 14px;
+        opacity: 0.9;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      button {
+        border-radius: 10px;
+        padding: 10px 12px;
+        border: 1px solid rgba(128, 128, 128, 0.45);
+        background: transparent;
+        cursor: pointer;
+      }
+      .pill {
+        display: inline-block;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(128, 128, 128, 0.35);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Demo Simulation</h1>
+      <p>
+        This is a simple, self-contained HTML simulation used for MVP testing. It runs entirely inside the embedded iframe.
+      </p>
+
+      <div class="row">
+        <button id="dec">-</button>
+        <span class="pill">Count: <strong id="count">0</strong></span>
+        <button id="inc">+</button>
+        <span class="pill" id="status">Interact to test iframe behavior</span>
+      </div>
+    </div>
+
+    <script>
+      const countEl = document.getElementById('count');
+      const statusEl = document.getElementById('status');
+      let n = 0;
+      function render() {
+        countEl.textContent = String(n);
+        statusEl.textContent = n === 0 ? 'Interact to test iframe behavior' : 'Working ✅';
+      }
+      document.getElementById('inc').addEventListener('click', () => {
+        n += 1;
+        render();
+      });
+      document.getElementById('dec').addEventListener('click', () => {
+        n -= 1;
+        render();
+      });
+      render();
+    </script>
+  </body>
+</html>

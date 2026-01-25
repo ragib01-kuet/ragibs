@@ -209,6 +209,36 @@ export type Database = {
         }
         Relationships: []
       }
+      teacher_public_profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          display_name: string
+          headline: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          display_name: string
+          headline?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          display_name?: string
+          headline?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       teacher_role_requests: {
         Row: {
           created_at: string
