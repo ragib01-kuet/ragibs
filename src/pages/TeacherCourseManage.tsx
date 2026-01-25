@@ -143,8 +143,13 @@ export default function TeacherCourseManage() {
   async function uploadVideoFile(file: File) {
     if (!session) throw new Error("Not signed in");
     const userId = session.user.id;
-    const path = `${userId}/${Date.now()}-${file.name}`;
-    const up = await supabase.storage.from("videos").upload(path, file, { upsert: true });
+    // Keep object names predictable + policy-compatible, and avoid special characters in filenames.
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const path = `${userId}/${Date.now()}-${safeName}`;
+    const up = await supabase.storage.from("videos").upload(path, file, {
+      upsert: true,
+      cacheControl: "3600",
+    });
     if (up.error) throw up.error;
     return supabase.storage.from("videos").getPublicUrl(path).data.publicUrl;
   }
