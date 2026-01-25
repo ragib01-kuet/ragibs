@@ -405,7 +405,7 @@ export default function TeacherCourseManage() {
         <Card>
           <CardHeader>
             <CardTitle>Videos</CardTitle>
-            <CardDescription>Publish videos when ready. (Player will be added next.)</CardDescription>
+            <CardDescription>Publish videos when ready.</CardDescription>
           </CardHeader>
           <CardContent>
             {videosQuery.isLoading ? (
