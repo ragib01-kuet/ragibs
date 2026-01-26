@@ -56,24 +56,6 @@ function fmt(seconds: number) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-function getYoutubeEmbedUrl(url: string): string | null {
-  try {
-    const u = new URL(url);
-    const host = u.hostname.replace(/^www\./, "");
-    if (host === "youtu.be") {
-      const id = u.pathname.replace(/^\//, "").split("/")[0];
-      return id ? `https://www.youtube.com/embed/${id}` : null;
-    }
-    if (host === "youtube.com" || host === "m.youtube.com") {
-      const id = u.searchParams.get("v") ?? "";
-      return id ? `https://www.youtube.com/embed/${id}` : null;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 export default function VideoPage() {
   const { courseId, videoId } = useParams();
   const { session } = useAuth();
@@ -172,7 +154,6 @@ export default function VideoPage() {
   const events = eventsQuery.data ?? [];
 
   const videoUrl = v?.video_url ?? null;
-  const youtubeEmbedUrl = useMemo(() => (videoUrl ? getYoutubeEmbedUrl(videoUrl) : null), [videoUrl]);
 
   const teacherQuery = useQuery({
     queryKey: ["teacher-public", v?.owner_id],
@@ -289,31 +270,16 @@ export default function VideoPage() {
             <div className="rounded-lg border bg-muted p-4">
               {videoUrl ? (
                 <div className="space-y-2">
-                  {youtubeEmbedUrl ? (
-                    <AspectRatio ratio={16 / 9}>
-                      <iframe
-                        title={v?.title ? `Video: ${v.title}` : "Video"}
-                        src={youtubeEmbedUrl}
-                        className="h-full w-full rounded-md"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                        referrerPolicy="no-referrer"
-                      />
-                    </AspectRatio>
-                  ) : (
-                    <video
-                      ref={videoElRef}
-                      src={videoUrl}
-                      controls
-                      playsInline
-                      className="w-full rounded-md"
-                      onError={() => {
-                        // Surface a useful hint; common causes: unpublished/private URL, wrong host (e.g. YouTube), or missing content-type.
-                        // eslint-disable-next-line no-console
-                        console.error("Video failed to load", { src: videoUrl });
-                      }}
-                    />
-                  )}
+                  <video
+                    ref={videoElRef}
+                    src={videoUrl}
+                    controls
+                    playsInline
+                    className="w-full rounded-md"
+                    onError={(e) => {
+                      console.error("Video failed to load", { src: videoUrl, error: e });
+                    }}
+                  />
                   <div className="text-xs text-muted-foreground">
                     {userId ? (
                       <>Seek lock enabled · Unlocked until {fmt(unlockedUntil)}</>

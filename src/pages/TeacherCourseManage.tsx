@@ -320,7 +320,7 @@ export default function TeacherCourseManage() {
                 <Label htmlFor="vurl">External video URL (optional)</Label>
                 <Input id="vurl" value={vUrl} disabled={!canUse || busy} onChange={(e) => setVUrl(e.target.value)} />
               </div>
-              <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2">
                 <Label htmlFor="vdesc">Description</Label>
                 <Textarea
                   id="vdesc"
@@ -355,9 +355,29 @@ export default function TeacherCourseManage() {
                     setError(null);
                     try {
                       const publicUrl = await uploadVideoFile(file);
-                      setVUrl(publicUrl);
+                      // Auto-save video to database immediately after upload
+                      const res = await supabase.from("videos").insert({
+                        course_id: courseId!,
+                        owner_id: session!.user.id,
+                        title: vTitle.trim() || file.name.replace(/\.[^/.]+$/, ""),
+                        description: vDesc || null,
+                        video_url: publicUrl,
+                        lecture_sheet_url: vLecture || null,
+                        exam_url: vExam || null,
+                        simulation_url: vSim || null,
+                        published: false,
+                      });
+                      if (res.error) throw res.error;
+                      // Clear form after successful save
+                      setVTitle("");
+                      setVDesc("");
+                      setVUrl("");
+                      setVLecture("");
+                      setVExam("");
+                      setVSim("");
+                      await videosQuery.refetch();
                     } catch (err: any) {
-                      setError(err?.message ?? "Failed to upload video");
+                      setError(err?.message ?? "Failed to upload and save video");
                     } finally {
                       setBusy(false);
                       e.target.value = "";
@@ -365,46 +385,11 @@ export default function TeacherCourseManage() {
                   }}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Upload stores the file and auto-fills the URL above.
+                  Upload saves the video immediately. Title defaults to filename if not provided.
                 </p>
               </div>
             </div>
 
-            <Button
-              disabled={!canUse || busy || !vTitle.trim()}
-              onClick={async () => {
-                if (!session || !courseId) return;
-                setBusy(true);
-                setError(null);
-                try {
-                  const res = await supabase.from("videos").insert({
-                    course_id: courseId,
-                    owner_id: session.user.id,
-                    title: vTitle.trim(),
-                    description: vDesc || null,
-                    video_url: vUrl || null,
-                    lecture_sheet_url: vLecture || null,
-                    exam_url: vExam || null,
-                    simulation_url: vSim || null,
-                    published: false,
-                  });
-                  if (res.error) throw res.error;
-                  setVTitle("");
-                  setVDesc("");
-                  setVUrl("");
-                  setVLecture("");
-                  setVExam("");
-                  setVSim("");
-                  await videosQuery.refetch();
-                } catch (e: any) {
-                  setError(e?.message ?? "Failed to create video");
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              Add video
-            </Button>
           </CardContent>
         </Card>
 
