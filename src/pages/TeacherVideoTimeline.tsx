@@ -13,7 +13,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthProvider";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { VideoEventOverlay } from "@/components/VideoEventOverlay";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
 
 type TimelineEventType = "quiz" | "exam" | "simulation";
 
@@ -47,24 +46,6 @@ function fmt(seconds: number) {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-function getYoutubeEmbedUrl(url: string): string | null {
-  try {
-    const u = new URL(url);
-    const host = u.hostname.replace(/^www\./, "");
-    if (host === "youtu.be") {
-      const id = u.pathname.replace(/^\//, "").split("/")[0];
-      return id ? `https://www.youtube.com/embed/${id}` : null;
-    }
-    if (host === "youtube.com" || host === "m.youtube.com") {
-      const id = u.searchParams.get("v") ?? "";
-      return id ? `https://www.youtube.com/embed/${id}` : null;
-    }
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 export default function TeacherVideoTimeline() {
@@ -424,7 +405,6 @@ export default function TeacherVideoTimeline() {
 
   const v = videoQuery.data;
   const videoUrl = v?.video_url ?? "";
-  const youtubeEmbedUrl = useMemo(() => (videoUrl ? getYoutubeEmbedUrl(videoUrl) : null), [videoUrl]);
 
   // Keep duration/current time synced
   useEffect(() => {
@@ -539,7 +519,7 @@ export default function TeacherVideoTimeline() {
                         if (!el) return;
                         void el.play().catch(() => {});
                       }}
-                      disabled={busy || Boolean(youtubeEmbedUrl)}
+                      disabled={busy}
                     >
                       Play
                     </Button>
@@ -549,32 +529,14 @@ export default function TeacherVideoTimeline() {
                       onClick={() => {
                         videoRef.current?.pause();
                       }}
-                      disabled={busy || Boolean(youtubeEmbedUrl)}
+                      disabled={busy}
                     >
                       Pause
                     </Button>
                   </div>
                 </div>
 
-                {youtubeEmbedUrl ? (
-                  <div className="space-y-2">
-                    <AspectRatio ratio={16 / 9}>
-                      <iframe
-                        title={v?.title ? `Video: ${v.title}` : "Video"}
-                        src={youtubeEmbedUrl}
-                        className="h-full w-full rounded-md border"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                        referrerPolicy="no-referrer"
-                      />
-                    </AspectRatio>
-                    <p className="text-xs text-muted-foreground">
-                      YouTube preview mode: timeline scrubbing/play controls are disabled here.
-                    </p>
-                  </div>
-                ) : (
-                  <video ref={videoRef} src={v.video_url ?? undefined} controls className="w-full rounded-md border" />
-                )}
+                <video ref={videoRef} src={v.video_url ?? undefined} controls className="w-full rounded-md border" />
 
                 <div className="space-y-2">
                   <div
@@ -583,7 +545,6 @@ export default function TeacherVideoTimeline() {
                     }}
                     className="relative h-12 w-full rounded-md border bg-muted"
                     onClick={(e) => {
-                      if (youtubeEmbedUrl) return;
                       const el = videoRef.current;
                       if (!el) return;
                       const next = secondsFromClientX(e.clientX);
@@ -609,10 +570,6 @@ export default function TeacherVideoTimeline() {
                           style={{ left: `${Math.max(0, Math.min(100, leftPct))}%` }}
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (youtubeEmbedUrl) {
-                              setPreviewEventId(ev.id);
-                              return;
-                            }
                             const el = videoRef.current;
                             if (el) {
                               el.currentTime = ev.at_seconds;
