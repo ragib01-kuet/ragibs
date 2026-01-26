@@ -10,8 +10,20 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthProvider";
+import { toast } from "@/components/ui/use-toast";
 
 type Course = {
   id: string;
@@ -47,6 +59,20 @@ export default function TeacherCourseManage() {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [deleteCourseConfirm, setDeleteCourseConfirm] = useState("");
+
+  function extractPublicStoragePath(url: string, bucket: string): string | null {
+    try {
+      const u = new URL(url);
+      const marker = `/storage/v1/object/public/${bucket}/`;
+      const idx = u.pathname.indexOf(marker);
+      if (idx === -1) return null;
+      return decodeURIComponent(u.pathname.slice(idx + marker.length));
+    } catch {
+      return null;
+    }
+  }
 
   const canUse = useMemo(() => Boolean(session && isTeacher && courseId), [session, isTeacher, courseId]);
 
@@ -139,6 +165,8 @@ export default function TeacherCourseManage() {
   const [vLecture, setVLecture] = useState("");
   const [vExam, setVExam] = useState("");
   const [vSim, setVSim] = useState("");
+
+  const uploadedVideoPath = useMemo(() => extractPublicStoragePath(vUrl, "videos"), [vUrl]);
 
   async function uploadVideoFile(file: File) {
     if (!session) throw new Error("Not signed in");
@@ -302,6 +330,73 @@ export default function TeacherCourseManage() {
                 Save course
               </Button>
             </div>
+
+            <div className="md:col-span-2 pt-2">
+              <div className="rounded-lg border p-4">
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Danger zone</div>
+                  <div className="text-xs text-muted-foreground">
+                    Deleting a course permanently removes the course, all videos, and all student progress for them.
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <AlertDialog
+                    onOpenChange={(open) => {
+                      if (!open) setDeleteCourseConfirm("");
+                    }}
+                  >
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" disabled={!canUse || busy}>
+                        Delete course
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete course?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. Type <span className="font-medium">DELETE</span> to confirm.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <div className="space-y-2">
+                        <Label htmlFor="delete-course-confirm">Confirmation</Label>
+                        <Input
+                          id="delete-course-confirm"
+                          value={deleteCourseConfirm}
+                          onChange={(e) => setDeleteCourseConfirm(e.target.value)}
+                          disabled={busy}
+                          placeholder="Type DELETE"
+                        />
+                      </div>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          disabled={!canUse || busy || deleteCourseConfirm !== "DELETE"}
+                          onClick={async () => {
+                            if (!courseId) return;
+                            setBusy(true);
+                            setError(null);
+                            try {
+                              const res = await supabase.functions.invoke("delete-course", { body: { courseId } });
+                              if (res.error) throw res.error;
+                              toast({ title: "Course deleted" });
+                              navigate("/studio");
+                            } catch (e: any) {
+                              setError(e?.message ?? "Failed to delete course");
+                            } finally {
+                              setBusy(false);
+                              setDeleteCourseConfirm("");
+                            }
+                          }}
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -320,6 +415,36 @@ export default function TeacherCourseManage() {
                 <Label htmlFor="vurl">Video URL</Label>
                 <Input id="vurl" value={vUrl} disabled={!canUse || busy} onChange={(e) => setVUrl(e.target.value)} />
                 <p className="text-xs text-muted-foreground">Storage URL will appear here after upload.</p>
+                {uploadedVideoPath ? (
+                  <div className="pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive"
+                      disabled={!canUse || busy}
+                      onClick={async () => {
+                        if (!uploadedVideoPath) return;
+                        setBusy(true);
+                        setError(null);
+                        try {
+                          const res = await supabase.functions.invoke("delete-storage-object", {
+                            body: { bucket: "videos", path: uploadedVideoPath },
+                          });
+                          if (res.error) throw res.error;
+                          setVUrl("");
+                          toast({ title: "Uploaded file removed" });
+                        } catch (e: any) {
+                          setError(e?.message ?? "Failed to remove uploaded file");
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                    >
+                      Remove uploaded file
+                    </Button>
+                  </div>
+                ) : null}
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="vdesc">Description</Label>
@@ -470,6 +595,51 @@ export default function TeacherCourseManage() {
                           <Button asChild size="sm">
                             <Link to={`/courses/${courseId}/videos/${vid.id}`}>View</Link>
                           </Button>
+
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-destructive"
+                                disabled={!canUse || busy}
+                              >
+                                Delete
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete video?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This permanently removes the video, its events, and student progress for this video.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  disabled={!canUse || busy}
+                                  onClick={async () => {
+                                    setBusy(true);
+                                    setError(null);
+                                    try {
+                                      const res = await supabase.functions.invoke("delete-video", {
+                                        body: { videoId: vid.id },
+                                      });
+                                      if (res.error) throw res.error;
+                                      toast({ title: "Video deleted" });
+                                      await videosQuery.refetch();
+                                    } catch (e: any) {
+                                      setError(e?.message ?? "Failed to delete video");
+                                    } finally {
+                                      setBusy(false);
+                                    }
+                                  }}
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       </TableCell>
                     </TableRow>
