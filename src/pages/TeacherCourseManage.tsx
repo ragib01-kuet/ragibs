@@ -308,7 +308,7 @@ export default function TeacherCourseManage() {
         <Card>
           <CardHeader>
             <CardTitle>Add video</CardTitle>
-            <CardDescription>Use either an external URL or upload a video file.</CardDescription>
+            <CardDescription>Upload a video file or manually enter details and save.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
@@ -317,10 +317,11 @@ export default function TeacherCourseManage() {
                 <Input id="vt" value={vTitle} disabled={!canUse || busy} onChange={(e) => setVTitle(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="vurl">External video URL (optional)</Label>
+                <Label htmlFor="vurl">Video URL</Label>
                 <Input id="vurl" value={vUrl} disabled={!canUse || busy} onChange={(e) => setVUrl(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Storage URL will appear here after upload.</p>
               </div>
-            <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="vdesc">Description</Label>
                 <Textarea
                   id="vdesc"
@@ -355,29 +356,13 @@ export default function TeacherCourseManage() {
                     setError(null);
                     try {
                       const publicUrl = await uploadVideoFile(file);
-                      // Auto-save video to database immediately after upload
-                      const res = await supabase.from("videos").insert({
-                        course_id: courseId!,
-                        owner_id: session!.user.id,
-                        title: vTitle.trim() || file.name.replace(/\.[^/.]+$/, ""),
-                        description: vDesc || null,
-                        video_url: publicUrl,
-                        lecture_sheet_url: vLecture || null,
-                        exam_url: vExam || null,
-                        simulation_url: vSim || null,
-                        published: false,
-                      });
-                      if (res.error) throw res.error;
-                      // Clear form after successful save
-                      setVTitle("");
-                      setVDesc("");
-                      setVUrl("");
-                      setVLecture("");
-                      setVExam("");
-                      setVSim("");
-                      await videosQuery.refetch();
+                      // Show URL in the field, user clicks save to persist
+                      setVUrl(publicUrl);
+                      if (!vTitle.trim()) {
+                        setVTitle(file.name.replace(/\.[^/.]+$/, ""));
+                      }
                     } catch (err: any) {
-                      setError(err?.message ?? "Failed to upload and save video");
+                      setError(err?.message ?? "Failed to upload video");
                     } finally {
                       setBusy(false);
                       e.target.value = "";
@@ -385,11 +370,46 @@ export default function TeacherCourseManage() {
                   }}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Upload saves the video immediately. Title defaults to filename if not provided.
+                  File uploads to storage and fills the URL field above. Click "Add video" to save.
                 </p>
               </div>
             </div>
 
+            <Button
+              disabled={!canUse || busy || !vTitle.trim()}
+              onClick={async () => {
+                if (!session || !courseId) return;
+                setBusy(true);
+                setError(null);
+                try {
+                  const res = await supabase.from("videos").insert({
+                    course_id: courseId,
+                    owner_id: session.user.id,
+                    title: vTitle.trim(),
+                    description: vDesc || null,
+                    video_url: vUrl || null,
+                    lecture_sheet_url: vLecture || null,
+                    exam_url: vExam || null,
+                    simulation_url: vSim || null,
+                    published: false,
+                  });
+                  if (res.error) throw res.error;
+                  setVTitle("");
+                  setVDesc("");
+                  setVUrl("");
+                  setVLecture("");
+                  setVExam("");
+                  setVSim("");
+                  await videosQuery.refetch();
+                } catch (e: any) {
+                  setError(e?.message ?? "Failed to create video");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Add video
+            </Button>
           </CardContent>
         </Card>
 
