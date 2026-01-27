@@ -62,6 +62,11 @@ export default function TeacherCourseManage() {
 
   const [deleteCourseConfirm, setDeleteCourseConfirm] = useState("");
 
+  function functionErrorMessage(err: unknown) {
+    const anyErr = err as any;
+    return anyErr?.context?.body?.error || anyErr?.message || "Request failed";
+  }
+
   function extractPublicStoragePath(url: string, bucket: string): string | null {
     try {
       const u = new URL(url);
@@ -378,11 +383,11 @@ export default function TeacherCourseManage() {
                             setError(null);
                             try {
                               const res = await supabase.functions.invoke("delete-course", { body: { courseId } });
-                              if (res.error) throw res.error;
+                              if (res.error) throw new Error(functionErrorMessage(res.error));
                               toast({ title: "Course deleted" });
                               navigate("/studio");
                             } catch (e: any) {
-                              setError(e?.message ?? "Failed to delete course");
+                              setError(functionErrorMessage(e) || "Failed to delete course");
                             } finally {
                               setBusy(false);
                               setDeleteCourseConfirm("");
@@ -431,11 +436,11 @@ export default function TeacherCourseManage() {
                           const res = await supabase.functions.invoke("delete-storage-object", {
                             body: { bucket: "videos", path: uploadedVideoPath },
                           });
-                          if (res.error) throw res.error;
+                          if (res.error) throw new Error(functionErrorMessage(res.error));
                           setVUrl("");
                           toast({ title: "Uploaded file removed" });
                         } catch (e: any) {
-                          setError(e?.message ?? "Failed to remove uploaded file");
+                          setError(functionErrorMessage(e) || "Failed to remove uploaded file");
                         } finally {
                           setBusy(false);
                         }
@@ -625,11 +630,11 @@ export default function TeacherCourseManage() {
                                       const res = await supabase.functions.invoke("delete-video", {
                                         body: { videoId: vid.id },
                                       });
-                                      if (res.error) throw res.error;
+                                      if (res.error) throw new Error(functionErrorMessage(res.error));
                                       toast({ title: "Video deleted" });
                                       await videosQuery.refetch();
                                     } catch (e: any) {
-                                      setError(e?.message ?? "Failed to delete video");
+                                      setError(functionErrorMessage(e) || "Failed to delete video");
                                     } finally {
                                       setBusy(false);
                                     }
