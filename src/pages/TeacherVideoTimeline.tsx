@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
@@ -172,6 +173,16 @@ export default function TeacherVideoTimeline() {
   const [previewEventId, setPreviewEventId] = useState<string | null>(null);
   const lastTriggeredAtRef = useRef<number>(-1);
   const draggingIdRef = useRef<string | null>(null);
+
+  // Timeline UX controls (YouTube Studio-ish)
+  const [zoomPxPerSecond, setZoomPxPerSecond] = useState(10); // 4..40 (roughly)
+  const [snapSeconds, setSnapSeconds] = useState(1); // 0 disables snapping
+
+  const snapTime = (seconds: number) => {
+    const s = Number(snapSeconds);
+    if (!Number.isFinite(s) || s <= 0) return seconds;
+    return Math.round(seconds / s) * s;
+  };
 
   const previewEvent = useMemo(() => {
     const list = eventsQuery.data ?? [];
@@ -539,73 +550,113 @@ export default function TeacherVideoTimeline() {
                 <video ref={videoRef} src={v.video_url ?? undefined} controls className="w-full rounded-md border" />
 
                 <div className="space-y-2">
-                  <div
-                    ref={(node) => {
-                      timelineRef.current = node;
-                    }}
-                    className="relative h-12 w-full rounded-md border bg-muted"
-                    onClick={(e) => {
-                      const el = videoRef.current;
-                      if (!el) return;
-                      const next = secondsFromClientX(e.clientX);
-                      el.currentTime = next;
-                      setCurrentTime(next);
-                    }}
-                  >
-                    {/* Playhead */}
-                    <div
-                      className="absolute top-0 h-full w-0.5 bg-primary"
-                      style={{ left: duration ? `${(currentTime / duration) * 100}%` : "0%" }}
-                    />
-
-                    {/* Event markers */}
-                    {(eventsQuery.data ?? []).map((ev) => {
-                      const leftPct = duration ? (ev.at_seconds / duration) * 100 : 0;
-                      return (
-                        <button
-                          key={ev.id}
-                          type="button"
-                          title={`${fmt(ev.at_seconds)} · ${ev.type}`}
-                          className="absolute top-1/2 h-6 w-2 -translate-y-1/2 rounded-full border bg-background"
-                          style={{ left: `${Math.max(0, Math.min(100, leftPct))}%` }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const el = videoRef.current;
-                            if (el) {
-                              el.currentTime = ev.at_seconds;
-                              setCurrentTime(ev.at_seconds);
-                            }
-                            // Quick preview overlay
-                            setPreviewEventId(ev.id);
-                            videoRef.current?.pause();
-                          }}
-                          onPointerDown={(e) => {
-                            e.stopPropagation();
-                            if (!canUse || busy) return;
-                            draggingIdRef.current = ev.id;
-                            (e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
-                          }}
-                          onPointerMove={(e) => {
-                            if (draggingIdRef.current !== ev.id) return;
-                            // Live scrub while dragging
-                            const next = secondsFromClientX(e.clientX);
-                            const el = videoRef.current;
-                            if (el) {
-                              el.currentTime = next;
-                              setCurrentTime(next);
-                            }
-                          }}
-                          onPointerUp={async (e) => {
-                            if (draggingIdRef.current !== ev.id) return;
-                            draggingIdRef.current = null;
-                            const next = secondsFromClientX(e.clientX);
-                            await updateEventTimestamp(ev.id, next);
-                          }}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="text-xs text-muted-foreground">Zoom</div>
+                      <div className="w-44">
+                        <Slider
+                          value={[zoomPxPerSecond]}
+                          min={4}
+                          max={40}
+                          step={1}
+                          onValueChange={(v) => setZoomPxPerSecond(v[0] ?? 10)}
+                          disabled={busy}
                         />
-                      );
-                    })}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{zoomPxPerSecond}px/s</div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs text-muted-foreground">Snap (s)</Label>
+                      <Input
+                        className="h-8 w-24"
+                        type="number"
+                        min={0}
+                        step={0.25}
+                        value={snapSeconds}
+                        disabled={busy}
+                        onChange={(e) => setSnapSeconds(Number(e.target.value))}
+                      />
+                      <div className="text-xs text-muted-foreground">0 = off</div>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">Tip: click marker to preview; drag marker to change timestamp.</p>
+
+                  <div className="overflow-x-auto rounded-md border">
+                    <div
+                      ref={(node) => {
+                        timelineRef.current = node;
+                      }}
+                      className="relative h-12 bg-muted"
+                      style={{ width: Math.max(600, Math.floor((duration || 0) * zoomPxPerSecond)) }}
+                      onClick={(e) => {
+                        const el = videoRef.current;
+                        if (!el) return;
+                        const raw = secondsFromClientX(e.clientX);
+                        const next = snapTime(raw);
+                        el.currentTime = next;
+                        setCurrentTime(next);
+                      }}
+                    >
+                      {/* Playhead */}
+                      <div
+                        className="absolute top-0 h-full w-0.5 bg-primary"
+                        style={{ left: `${Math.max(0, Math.floor(currentTime * zoomPxPerSecond))}px` }}
+                      />
+
+                      {/* Event markers */}
+                      {(eventsQuery.data ?? []).map((ev) => {
+                        const leftPx = Math.max(0, Math.floor(ev.at_seconds * zoomPxPerSecond));
+                        return (
+                          <button
+                            key={ev.id}
+                            type="button"
+                            title={`${fmt(ev.at_seconds)} · ${ev.type}`}
+                            className="absolute top-1/2 h-6 w-2 -translate-y-1/2 rounded-full border bg-background"
+                            style={{ left: `${leftPx}px` }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const el = videoRef.current;
+                              if (el) {
+                                el.currentTime = ev.at_seconds;
+                                setCurrentTime(ev.at_seconds);
+                              }
+                              // Quick preview overlay
+                              setPreviewEventId(ev.id);
+                              videoRef.current?.pause();
+                            }}
+                            onPointerDown={(e) => {
+                              e.stopPropagation();
+                              if (!canUse || busy) return;
+                              draggingIdRef.current = ev.id;
+                              (e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
+                            }}
+                            onPointerMove={(e) => {
+                              if (draggingIdRef.current !== ev.id) return;
+                              // Live scrub while dragging (snapped)
+                              const raw = secondsFromClientX(e.clientX);
+                              const next = snapTime(raw);
+                              const el = videoRef.current;
+                              if (el) {
+                                el.currentTime = next;
+                                setCurrentTime(next);
+                              }
+                            }}
+                            onPointerUp={async (e) => {
+                              if (draggingIdRef.current !== ev.id) return;
+                              draggingIdRef.current = null;
+                              const raw = secondsFromClientX(e.clientX);
+                              const next = snapTime(raw);
+                              await updateEventTimestamp(ev.id, next);
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Tip: click marker to preview; drag marker to change timestamp. Use Zoom + Snap for precise placement.
+                  </p>
                 </div>
               </div>
             ) : (

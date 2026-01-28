@@ -94,7 +94,9 @@ export function SimulationFrame({
         title={title}
         srcDoc={srcDoc}
         className={className}
-        sandbox="allow-scripts allow-forms"
+        // Keep behavior consistent with the normal iframe embed; many simulations rely on same-origin APIs
+        // (e.g. localStorage) and break without allow-same-origin.
+        sandbox="allow-scripts allow-forms allow-same-origin"
         referrerPolicy="no-referrer"
         loading="lazy"
         onLoad={onLoaded}
