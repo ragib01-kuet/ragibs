@@ -55,6 +55,8 @@ export function VideoEventOverlay({
   const [showSimulationFallbackHint, setShowSimulationFallbackHint] = useState(false);
   const [examLoaded, setExamLoaded] = useState(false);
   const [showExamFallbackHint, setShowExamFallbackHint] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
 
   const examUrl = useMemo(() => (event.type === "exam" ? (event.payload?.url as string | undefined) : undefined), [event]);
   const simulationUrl = useMemo(
@@ -176,12 +178,24 @@ export function VideoEventOverlay({
                     ) : event.required ? (
                       <Button
                         onClick={async () => {
-                          const r = await onComplete();
-                          if (r.ok) onClose();
+                          setCompleteError(null);
+                          setCompleting(true);
+                          try {
+                            const r = await onComplete();
+                            if (r.ok) {
+                              onClose();
+                              return;
+                            }
+                            setCompleteError("Could not mark complete. Please try again.");
+                          } catch (e: any) {
+                            setCompleteError(e?.message ?? "Could not mark complete. Please try again.");
+                          } finally {
+                            setCompleting(false);
+                          }
                         }}
-                        disabled={busy || completed}
+                        disabled={busy || completing || completed}
                       >
-                        {completed ? "Completed" : "Mark complete"}
+                        {completed ? "Completed" : completing ? "Saving…" : "Mark complete"}
                       </Button>
                     ) : (
                       <Button onClick={onClose} disabled={busy}>
@@ -189,6 +203,8 @@ export function VideoEventOverlay({
                       </Button>
                     )}
                   </div>
+
+                  {completeError ? <p className="text-sm text-destructive">{completeError}</p> : null}
 
                   {!examLoaded ? <p className="text-sm text-muted-foreground">Loading exam…</p> : null}
                   {showExamFallbackHint && !examLoaded ? (
@@ -231,12 +247,24 @@ export function VideoEventOverlay({
                     ) : event.required ? (
                       <Button
                         onClick={async () => {
-                          const r = await onComplete();
-                          if (r.ok) onClose();
+                          setCompleteError(null);
+                          setCompleting(true);
+                          try {
+                            const r = await onComplete();
+                            if (r.ok) {
+                              onClose();
+                              return;
+                            }
+                            setCompleteError("Could not mark complete. Please try again.");
+                          } catch (e: any) {
+                            setCompleteError(e?.message ?? "Could not mark complete. Please try again.");
+                          } finally {
+                            setCompleting(false);
+                          }
                         }}
-                        disabled={busy || completed}
+                        disabled={busy || completing || completed}
                       >
-                        {completed ? "Completed" : "Mark complete"}
+                        {completed ? "Completed" : completing ? "Saving…" : "Mark complete"}
                       </Button>
                     ) : (
                       <Button onClick={onClose} disabled={busy}>
@@ -244,6 +272,8 @@ export function VideoEventOverlay({
                       </Button>
                     )}
                   </div>
+
+                  {completeError ? <p className="text-sm text-destructive">{completeError}</p> : null}
 
                   {!simulationLoaded ? (
                     <p className="text-sm text-muted-foreground">Loading simulation…</p>

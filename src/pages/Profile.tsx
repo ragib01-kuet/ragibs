@@ -21,6 +21,7 @@ export default function Profile() {
   const { session, profile, refresh, loading, roles } = useAuth();
   const [displayName, setDisplayName] = useState(profile?.display_name ?? "");
   const [bio, setBio] = useState(profile?.bio ?? "");
+  const [detailsDirty, setDetailsDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +41,14 @@ export default function Profile() {
 
   const canEdit = useMemo(() => Boolean(session && profile && userId), [session, profile, userId]);
   const isTeacher = roles.includes("teacher") || roles.includes("admin");
+
+  // Keep local form state in sync with the global profile (without overwriting user edits mid-typing).
+  useEffect(() => {
+    if (!profile) return;
+    if (detailsDirty) return;
+    setDisplayName(profile.display_name ?? "");
+    setBio(profile.bio ?? "");
+  }, [profile, detailsDirty]);
 
   // Load public teacher card (only relevant for teachers/admins)
   useEffect(() => {
@@ -143,6 +152,18 @@ export default function Profile() {
                       .eq("user_id", userId);
                     if (upd.error) throw upd.error;
 
+                    if (isTeacher) {
+                      const pubUp = await supabase.from("teacher_public_profiles").upsert(
+                        {
+                          user_id: userId,
+                          display_name: displayName.trim() || profile?.display_name || "Teacher",
+                          avatar_url: publicUrl,
+                        },
+                        { onConflict: "user_id" },
+                      );
+                      if (pubUp.error) throw pubUp.error;
+                    }
+
                     await refresh();
                   } catch (err: any) {
                     setError(err?.message ?? "Failed to upload avatar");
@@ -176,13 +197,24 @@ export default function Profile() {
                 id="displayName"
                 value={displayName}
                 disabled={!canEdit || busy}
-                onChange={(e) => setDisplayName(e.target.value)}
+                  onChange={(e) => {
+                    setDetailsDirty(true);
+                    setDisplayName(e.target.value);
+                  }}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="bio">Bio</Label>
-              <Textarea id="bio" value={bio} disabled={!canEdit || busy} onChange={(e) => setBio(e.target.value)} />
+                <Textarea
+                  id="bio"
+                  value={bio}
+                  disabled={!canEdit || busy}
+                  onChange={(e) => {
+                    setDetailsDirty(true);
+                    setBio(e.target.value);
+                  }}
+                />
             </div>
 
             <Button
@@ -197,7 +229,22 @@ export default function Profile() {
                     .update({ display_name: displayName.trim() || profile?.display_name, bio })
                     .eq("user_id", userId);
                   if (upd.error) throw upd.error;
+
+                  // Keep teacher-facing public card in sync globally (Course/Video pages read from teacher_public_profiles).
+                  if (isTeacher) {
+                    const pubUp = await supabase.from("teacher_public_profiles").upsert(
+                      {
+                        user_id: userId,
+                        display_name: displayName.trim() || profile?.display_name || "Teacher",
+                        avatar_url: profile?.avatar_url ?? null,
+                      },
+                      { onConflict: "user_id" },
+                    );
+                    if (pubUp.error) throw pubUp.error;
+                  }
+
                   await refresh();
+                  setDetailsDirty(false);
                 } catch (err: any) {
                   setError(err?.message ?? "Failed to save profile");
                 } finally {
