@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SimulationFrame } from "@/components/overlays/SimulationFrame";
 
 type TimelineEventType = "quiz" | "exam" | "simulation";
 
@@ -254,15 +255,11 @@ export function VideoEventOverlay({
                   ) : null}
 
                   <div className="overflow-hidden rounded-md border">
-                    <iframe
-                      key={simulationUrl}
+                    <SimulationFrame
+                      url={simulationUrl}
                       title={event.title ? `Simulation: ${event.title}` : "Simulation"}
-                      src={simulationUrl}
                       className="h-[60vh] w-full"
-                      sandbox="allow-scripts allow-forms allow-same-origin"
-                      referrerPolicy="no-referrer"
-                      loading="lazy"
-                      onLoad={() => setSimulationLoaded(true)}
+                      onLoaded={() => setSimulationLoaded(true)}
                     />
                   </div>
                 </div>
