@@ -153,6 +153,8 @@ export default function VideoPage() {
   const v = videoQuery.data;
   const events = eventsQuery.data ?? [];
 
+  const hasQuizEvents = useMemo(() => events.some((e) => e.type === "quiz"), [events]);
+
   const videoUrl = v?.video_url ?? null;
 
   const teacherQuery = useQuery({
@@ -221,10 +223,11 @@ export default function VideoPage() {
     };
 
     const onSeeking = () => {
+      if (!userId) return;
+      // If there are no quizzes in this video, allow free seeking.
+      if (!hasQuizEvents) return;
       const allowed = unlockedRef.current;
-      if (el.currentTime > allowed + 0.5) {
-        el.currentTime = allowed;
-      }
+      if (el.currentTime > allowed + 0.5) el.currentTime = allowed;
     };
 
     el.addEventListener("timeupdate", onTimeUpdate);
@@ -233,7 +236,7 @@ export default function VideoPage() {
       el.removeEventListener("timeupdate", onTimeUpdate);
       el.removeEventListener("seeking", onSeeking);
     };
-  }, [activeEventId, completionsQuery.data, events, progressQuery, userId, videoId]);
+  }, [activeEventId, completionsQuery.data, events, hasQuizEvents, progressQuery, userId, videoId]);
 
   const activeEvent = useMemo(() => events.find((e) => e.id === activeEventId) ?? null, [events, activeEventId]);
   const activeQuiz = useMemo(() => (activeEvent?.type === "quiz" ? quizByEventId.get(activeEvent.id) : undefined), [activeEvent, quizByEventId]);
@@ -282,9 +285,13 @@ export default function VideoPage() {
                   />
                   <div className="text-xs text-muted-foreground">
                     {userId ? (
-                      <>Seek lock enabled · Unlocked until {fmt(unlockedUntil)}</>
+                      hasQuizEvents ? (
+                        <>Seek lock enabled · Unlocked until {fmt(unlockedUntil)}</>
+                      ) : (
+                        <>Seeking unlocked · (no quizzes in this video)</>
+                      )
                     ) : (
-                      <>Sign in to enable seek lock and progress tracking.</>
+                      <>Sign in to enable progress tracking.</>
                     )}
                   </div>
                 </div>
@@ -387,8 +394,12 @@ export default function VideoPage() {
                                 </div>
                                 <div className="flex flex-wrap items-center gap-3">
                                   <Button
-                                    disabled={selected === undefined || submitting}
+                                    disabled={!userId || selected === undefined || submitting}
                                     onClick={async () => {
+                                      if (!userId) {
+                                        setResultByEvent((r) => ({ ...r, [e.id]: { ok: false, isCorrect: false } }));
+                                        return;
+                                      }
                                       if (selected === undefined) return;
                                       setSubmittingByEvent((s) => ({ ...s, [e.id]: true }));
                                       try {
@@ -410,7 +421,13 @@ export default function VideoPage() {
                                   </Button>
                                   {result ? (
                                     <p className={result.ok && result.isCorrect ? "text-sm text-muted-foreground" : "text-sm text-destructive"}>
-                                      {result.ok ? (result.isCorrect ? "Correct." : "Incorrect.") : "Submit failed (sign in required)."}
+                                      {result.ok
+                                        ? result.isCorrect
+                                          ? "Correct."
+                                          : "Incorrect."
+                                        : userId
+                                          ? "Submit failed."
+                                          : "Sign in required to submit."}
                                     </p>
                                   ) : null}
                                 </div>

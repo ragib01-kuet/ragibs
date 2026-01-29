@@ -236,7 +236,7 @@ export function VideoEventOverlay({
                 <div className="w-full space-y-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <Button asChild variant="secondary">
-                      <a href={simulationUrl} target="_blank" rel="noreferrer">
+                      <a href={`/simulations/view?url=${encodeURIComponent(simulationUrl)}`} target="_blank" rel="noreferrer">
                         Open in new tab
                       </a>
                     </Button>
