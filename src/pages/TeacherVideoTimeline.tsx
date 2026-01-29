@@ -212,7 +212,9 @@ export default function TeacherVideoTimeline() {
   const [editExamUrl, setEditExamUrl] = useState("");
   const [editQuizQuestion, setEditQuizQuestion] = useState("");
   const [editQuizOptionsText, setEditQuizOptionsText] = useState("");
-  const [editQuizCorrectIndex, setEditQuizCorrectIndex] = useState(0);
+  // 1-based for UX: user types 1,2,3... (stored as 0-based in DB)
+  const [editQuizCorrectIndex, setEditQuizCorrectIndex] = useState(1);
+  const [editQuizDirty, setEditQuizDirty] = useState(false);
 
   // Add form
   const [type, setType] = useState<TimelineEventType>("quiz");
@@ -223,7 +225,8 @@ export default function TeacherVideoTimeline() {
   const [examUrl, setExamUrl] = useState("");
   const [quizQuestion, setQuizQuestion] = useState("");
   const [quizOptionsText, setQuizOptionsText] = useState("Option A\nOption B\nOption C\nOption D");
-  const [quizCorrectIndex, setQuizCorrectIndex] = useState(0);
+  // 1-based for UX: user types 1,2,3... (stored as 0-based in DB)
+  const [quizCorrectIndex, setQuizCorrectIndex] = useState(1);
 
   async function uploadSimulationHtml(file: File) {
     if (!session) throw new Error("Not signed in");
@@ -248,15 +251,32 @@ export default function TeacherVideoTimeline() {
 
     if (e.type === "quiz") {
       const q = quizByEventId.get(e.id);
+      setEditQuizDirty(false);
       setEditQuizQuestion(q?.question ?? "");
       setEditQuizOptionsText((q?.options ?? []).join("\n"));
-      setEditQuizCorrectIndex(q?.correct_index ?? 0);
+      setEditQuizCorrectIndex((q?.correct_index ?? 0) + 1);
     } else {
+      setEditQuizDirty(false);
       setEditQuizQuestion("");
       setEditQuizOptionsText("");
-      setEditQuizCorrectIndex(0);
+      setEditQuizCorrectIndex(1);
     }
   }
+
+  // If teacher opens edit before quizzesQuery loads, repopulate once quiz data arrives
+  useEffect(() => {
+    if (!editingId) return;
+    if (editQuizDirty) return;
+    const ev = (eventsQuery.data ?? []).find((x) => x.id === editingId);
+    if (!ev || ev.type !== "quiz") return;
+    const q = quizByEventId.get(editingId);
+    if (!q) return;
+    // Only hydrate if fields are still blank (avoid overwriting user typing)
+    if (editQuizQuestion.trim() || editQuizOptionsText.trim()) return;
+    setEditQuizQuestion(q.question);
+    setEditQuizOptionsText((q.options ?? []).join("\n"));
+    setEditQuizCorrectIndex((q.correct_index ?? 0) + 1);
+  }, [editingId, editQuizDirty, editQuizQuestion, editQuizOptionsText, eventsQuery.data, quizByEventId]);
 
   function cancelEdit() {
     setEditingId(null);
@@ -291,13 +311,16 @@ export default function TeacherVideoTimeline() {
           .map((s) => s.trim())
           .filter(Boolean);
         if (!editQuizQuestion.trim() || opts.length < 2) throw new Error("Quiz needs a question and at least 2 options");
-        if (editQuizCorrectIndex < 0 || editQuizCorrectIndex >= opts.length) throw new Error("Correct option index is out of range");
+        if (!Number.isFinite(editQuizCorrectIndex) || editQuizCorrectIndex < 1 || editQuizCorrectIndex > opts.length) {
+          throw new Error("Correct answer must be between 1 and the number of options");
+        }
+        const correctIndex0 = editQuizCorrectIndex - 1;
 
         const existing = quizByEventId.get(e.id);
         if (existing) {
           const qUp = await supabase
             .from("quizzes")
-            .update({ question: editQuizQuestion.trim(), options: opts, correct_index: editQuizCorrectIndex })
+            .update({ question: editQuizQuestion.trim(), options: opts, correct_index: correctIndex0 })
             .eq("id", existing.id);
           if (qUp.error) throw qUp.error;
         } else {
@@ -305,7 +328,7 @@ export default function TeacherVideoTimeline() {
             event_id: e.id,
             question: editQuizQuestion.trim(),
             options: opts,
-            correct_index: editQuizCorrectIndex,
+            correct_index: correctIndex0,
           });
           if (qIns.error) throw qIns.error;
         }
@@ -368,13 +391,16 @@ export default function TeacherVideoTimeline() {
           .map((s) => s.trim())
           .filter(Boolean);
         if (!quizQuestion.trim() || opts.length < 2) throw new Error("Quiz needs a question and at least 2 options");
-        if (quizCorrectIndex < 0 || quizCorrectIndex >= opts.length) throw new Error("Correct option index is out of range");
+        if (!Number.isFinite(quizCorrectIndex) || quizCorrectIndex < 1 || quizCorrectIndex > opts.length) {
+          throw new Error("Correct answer must be between 1 and the number of options");
+        }
+        const correctIndex0 = quizCorrectIndex - 1;
 
         const qRes = await supabase.from("quizzes").insert({
           event_id: eventId,
           question: quizQuestion.trim(),
           options: opts,
-          correct_index: quizCorrectIndex,
+          correct_index: correctIndex0,
         });
         if (qRes.error) throw qRes.error;
       }
@@ -729,14 +755,15 @@ export default function TeacherVideoTimeline() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Correct option index (0-based)</Label>
+                  <Label>Correct answer (1,2,3…)</Label>
                   <Input
                     type="number"
-                    min={0}
+                    min={1}
                     value={quizCorrectIndex}
                     disabled={!canUse || busy}
                     onChange={(e) => setQuizCorrectIndex(Number(e.target.value))}
                   />
+                  <p className="text-xs text-muted-foreground">Example: enter 1 for the first option, 2 for the second, etc.</p>
                 </div>
                 <Button disabled={!canUse || busy || !quizQuestion.trim()} onClick={() => createEvent({})}>
                   Add quiz event
@@ -953,7 +980,10 @@ export default function TeacherVideoTimeline() {
                                 <Input
                                   value={editQuizQuestion}
                                   disabled={!canUse || busy}
-                                  onChange={(ev) => setEditQuizQuestion(ev.target.value)}
+                                  onChange={(ev) => {
+                                    setEditQuizDirty(true);
+                                    setEditQuizQuestion(ev.target.value);
+                                  }}
                                 />
                               </div>
                               <div className="space-y-2">
@@ -961,18 +991,25 @@ export default function TeacherVideoTimeline() {
                                 <Textarea
                                   value={editQuizOptionsText}
                                   disabled={!canUse || busy}
-                                  onChange={(ev) => setEditQuizOptionsText(ev.target.value)}
+                                  onChange={(ev) => {
+                                    setEditQuizDirty(true);
+                                    setEditQuizOptionsText(ev.target.value);
+                                  }}
                                 />
                               </div>
                               <div className="space-y-2">
-                                <Label>Correct option index (0-based)</Label>
+                                <Label>Correct answer (1,2,3…)</Label>
                                 <Input
                                   type="number"
-                                  min={0}
+                                  min={1}
                                   value={editQuizCorrectIndex}
                                   disabled={!canUse || busy}
-                                  onChange={(ev) => setEditQuizCorrectIndex(Number(ev.target.value))}
+                                  onChange={(ev) => {
+                                    setEditQuizDirty(true);
+                                    setEditQuizCorrectIndex(Number(ev.target.value));
+                                  }}
                                 />
+                                <p className="text-xs text-muted-foreground">Example: enter 1 for the first option, 2 for the second, etc.</p>
                               </div>
                             </div>
                           ) : null}
