@@ -19,6 +19,7 @@ import TeacherStudio from "./pages/TeacherStudio";
 import TeacherCourseManage from "./pages/TeacherCourseManage";
 import TeacherVideoTimeline from "./pages/TeacherVideoTimeline";
 import TeacherAnalytics from "./pages/TeacherAnalytics";
+import SimulationViewer from "./pages/SimulationViewer";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/courses" element={<Courses />} />
             <Route path="/courses/:courseId" element={<CourseDetail />} />
             <Route path="/courses/:courseId/videos/:videoId" element={<VideoPage />} />
+            <Route path="/simulations/view" element={<SimulationViewer />} />
             <Route path="/studio" element={<TeacherStudio />} />
             <Route path="/studio/analytics" element={<TeacherAnalytics />} />
             <Route path="/studio/courses/:courseId" element={<TeacherCourseManage />} />
