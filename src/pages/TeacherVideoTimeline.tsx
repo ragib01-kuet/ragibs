@@ -93,7 +93,7 @@ export default function TeacherVideoTimeline() {
   const examEventIds = useMemo(() => (eventsQuery.data ?? []).filter((e) => e.type === "exam").map((e) => e.id), [eventsQuery.data]);
 
   const quizzesQuery = useQuery({
-    queryKey: ["teacher", "video", videoId, "quizzes"],
+    queryKey: ["teacher", "video", videoId, "quizzes", quizEventIds.join(",")],
     enabled: canUse && quizEventIds.length > 0,
     queryFn: async () => {
       const res = await supabase
@@ -367,6 +367,7 @@ export default function TeacherVideoTimeline() {
     if (!session || !videoId) return;
     setBusy(true);
     setError(null);
+    let createdEventId: string | null = null;
     try {
       const insertRes = await supabase
         .from("timeline_events")
@@ -384,6 +385,7 @@ export default function TeacherVideoTimeline() {
       if (insertRes.error) throw insertRes.error;
       const eventId = insertRes.data?.id as string | undefined;
       if (!eventId) throw new Error("Failed to create event");
+      createdEventId = eventId;
 
       if (type === "quiz") {
         const opts = quizOptionsText
@@ -415,6 +417,14 @@ export default function TeacherVideoTimeline() {
       await eventsQuery.refetch();
       await quizzesQuery.refetch();
     } catch (e: any) {
+      // If quiz creation fails after the timeline event was created, roll back the orphan event.
+      if (createdEventId && type === "quiz") {
+        try {
+          await supabase.from("timeline_events").delete().eq("id", createdEventId);
+        } catch {
+          // best-effort
+        }
+      }
       setError(e?.message ?? "Failed to create event");
     } finally {
       setBusy(false);

@@ -112,7 +112,7 @@ export default function VideoPage() {
   );
 
   const quizzesQuery = useQuery({
-    queryKey: ["video", videoId, "quizzes"],
+    queryKey: ["video", videoId, "quizzes", quizEventIds.join(",")],
     enabled: Boolean(videoId) && quizEventIds.length > 0,
     queryFn: async () => {
       const res = await supabase
@@ -147,6 +147,7 @@ export default function VideoPage() {
       const res = await supabase
         .from("video_event_completions")
         .select("event_id")
+        .eq("user_id", userId!)
         .in("event_id", ids);
       if (res.error) throw res.error;
       return new Set((res.data ?? []).map((r) => r.event_id as string));
