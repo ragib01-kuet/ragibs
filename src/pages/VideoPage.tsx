@@ -10,6 +10,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthProvider";
 import { VideoEventOverlay } from "@/components/VideoEventOverlay";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type Video = {
   id: string;
@@ -64,6 +71,8 @@ export default function VideoPage() {
   const [submittingByEvent, setSubmittingByEvent] = useState<Record<string, boolean>>({});
   const [resultByEvent, setResultByEvent] = useState<Record<string, { ok: boolean; isCorrect: boolean } | undefined>>({});
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
+
+  const [playbackRate, setPlaybackRate] = useState<number>(1);
 
   const videoElRef = useRef<HTMLVideoElement | null>(null);
   const lastProgressSentAtRef = useRef<number>(0);
@@ -180,6 +189,11 @@ export default function VideoPage() {
     unlockedRef.current = unlockedUntil;
   }, [unlockedUntil]);
 
+  useEffect(() => {
+    if (!videoElRef.current) return;
+    videoElRef.current.playbackRate = playbackRate;
+  }, [playbackRate]);
+
   // Auto-open the next event once playback reaches it (and it's not already completed).
   useEffect(() => {
     if (!videoElRef.current) return;
@@ -189,7 +203,9 @@ export default function VideoPage() {
       const t = el.currentTime;
 
       // Progress writeback (best-effort): every 5s, advance unlocked to watched time.
-      if (userId) {
+      // IMPORTANT: When this video has quizzes, progress/seek unlock is gated by quiz completion.
+      // So we ONLY auto-advance progress for non-quiz videos.
+      if (userId && !hasQuizEvents) {
         const now = Date.now();
         if (now - lastProgressSentAtRef.current > 5000) {
           const nextUnlocked = Math.max(unlockedRef.current, Math.floor(t));
@@ -283,10 +299,34 @@ export default function VideoPage() {
                       console.error("Video failed to load", { src: videoUrl, error: e });
                     }}
                   />
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="text-xs text-muted-foreground">Speed</div>
+                    <Select
+                      value={String(playbackRate)}
+                      onValueChange={(v) => {
+                        const n = Number(v);
+                        if (Number.isFinite(n) && n > 0) setPlaybackRate(n);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-[120px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0.5">0.5×</SelectItem>
+                        <SelectItem value="0.75">0.75×</SelectItem>
+                        <SelectItem value="1">1×</SelectItem>
+                        <SelectItem value="1.25">1.25×</SelectItem>
+                        <SelectItem value="1.5">1.5×</SelectItem>
+                        <SelectItem value="2">2×</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className="text-xs text-muted-foreground">
                     {userId ? (
                       hasQuizEvents ? (
-                        <>Seek lock enabled · Unlocked until {fmt(unlockedUntil)}</>
+                        <>Quiz gating enabled · Seeking unlocked until {fmt(unlockedUntil)}</>
                       ) : (
                         <>Seeking unlocked · (no quizzes in this video)</>
                       )
