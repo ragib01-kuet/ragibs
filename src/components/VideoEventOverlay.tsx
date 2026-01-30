@@ -58,6 +58,8 @@ export function VideoEventOverlay({
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
 
+  const isQuizRequired = event.type === "quiz" && event.required;
+
   const examUrl = useMemo(() => (event.type === "exam" ? (event.payload?.url as string | undefined) : undefined), [event]);
   const simulationUrl = useMemo(
     () => (event.type === "simulation" ? (event.payload?.simulation_url as string | undefined) : undefined),
@@ -112,7 +114,11 @@ export function VideoEventOverlay({
                         name={`overlay-q-${event.id}`}
                         checked={selectedIndex === idx}
                         disabled={busy || submitting}
-                        onChange={() => setSelectedIndex(idx)}
+                        onChange={() => {
+                          setSelectedIndex(idx);
+                          // If they change their selection, clear prior feedback.
+                          setResult(null);
+                        }}
                       />
                       <span>{opt}</span>
                     </label>
@@ -139,15 +145,26 @@ export function VideoEventOverlay({
                       }
                     }}
                   >
-                    {previewOnly ? "Close" : submitting ? "Submitting…" : "Submit"}
+                    {previewOnly ? "Close" : submitting ? "Checking…" : "Submit"}
                   </Button>
-                  <Button variant="secondary" disabled={busy || submitting} onClick={onClose}>
-                    Close
-                  </Button>
+                  {/* Avoid double-close in preview mode */}
+                  {!previewOnly ? (
+                    <Button
+                      variant="secondary"
+                      disabled={busy || submitting || (isQuizRequired && !(result?.ok && result.isCorrect))}
+                      onClick={onClose}
+                    >
+                      {isQuizRequired ? "Back" : "Close"}
+                    </Button>
+                  ) : null}
                 </div>
                 {!previewOnly && result ? (
                   <p className={result.ok && result.isCorrect ? "text-sm text-muted-foreground" : "text-sm text-destructive"}>
-                    {result.ok ? (result.isCorrect ? "Correct." : "Incorrect.") : "Submit failed."}
+                    {result.ok
+                      ? result.isCorrect
+                        ? "Correct. Continuing…"
+                        : "Wrong answer — try again."
+                      : "Submit failed. Please try again."}
                   </p>
                 ) : null}
               </div>
