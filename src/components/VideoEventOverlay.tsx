@@ -128,15 +128,11 @@ export function VideoEventOverlay({
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
-                    disabled={busy || submitting || selectedIndex === null || (!previewOnly && !isAuthed)}
+                    disabled={busy || submitting || selectedIndex === null}
                     onClick={async () => {
                       if (selectedIndex === null) return;
                       if (previewOnly) {
                         onClose();
-                        return;
-                      }
-                      if (!isAuthed) {
-                        setResult({ ok: false, isCorrect: false });
                         return;
                       }
                       setSubmitting(true);
@@ -164,16 +160,18 @@ export function VideoEventOverlay({
                     </Button>
                   ) : null}
                 </div>
-                {!previewOnly && !isAuthed ? <p className="text-sm text-destructive">Sign in required to continue.</p> : null}
+                {!previewOnly && !isAuthed ? (
+                  <p className="text-xs text-muted-foreground">
+                    Note: You can try quizzes without signing in, but progress won't be saved.
+                  </p>
+                ) : null}
                 {!previewOnly && result ? (
                   <p className={result.ok && result.isCorrect ? "text-sm text-muted-foreground" : "text-sm text-destructive"}>
                     {result.ok
                       ? result.isCorrect
                         ? "Correct. Continuing…"
                         : "Wrong answer — try again."
-                      : isAuthed
-                        ? "Submit failed. Please try again."
-                        : "Sign in required to submit."}
+                      : "Submit failed. Please try again."}
                   </p>
                 ) : null}
               </div>

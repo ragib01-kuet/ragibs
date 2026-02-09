@@ -228,10 +228,8 @@ export default function VideoPage() {
         }
       }
 
-      // Auto-popups and completion require a real signed-in session.
-      // Without that, function calls would use an anon token and return 401.
-      if (!userId) return;
-
+      // Auto-popups work for everyone (signed-in or anonymous)
+      // Progress tracking only happens for signed-in users
       if (activeEventId) return;
       if (events.length === 0) return;
 
@@ -575,14 +573,16 @@ export default function VideoPage() {
             isAuthed={Boolean(userId)}
             busy={eventsQuery.isLoading || quizzesQuery.isLoading || progressQuery.isLoading}
             onSubmitQuiz={async (selectedIndex) => {
-              if (!userId) return { ok: false, isCorrect: false };
+              // Allow anonymous attempts; backend will return isCorrect without saving progress
               const res = await supabase.functions.invoke("quiz-attempt", {
                 body: { eventId: activeEvent.id, selectedIndex },
               });
               if (res.error) return { ok: false, isCorrect: false };
               const r = { ok: true, isCorrect: Boolean((res.data as any)?.isCorrect) };
-              await completionsQuery.refetch();
-              await progressQuery.refetch();
+              if (userId) {
+                await completionsQuery.refetch();
+                await progressQuery.refetch();
+              }
               return r;
             }}
             onOpenExam={async (url) => {
@@ -591,13 +591,15 @@ export default function VideoPage() {
             }}
             completed={activeCompleted}
             onComplete={async () => {
-              if (!userId) return { ok: false };
+              // Allow anonymous completion; backend will return ok without saving if not signed in
               const res = await supabase.functions.invoke("event-complete", {
                 body: { eventId: activeEvent.id },
               });
               if (res.error) return { ok: false };
-              await completionsQuery.refetch();
-              await progressQuery.refetch();
+              if (userId) {
+                await completionsQuery.refetch();
+                await progressQuery.refetch();
+              }
               return { ok: true };
             }}
             onClose={() => {
