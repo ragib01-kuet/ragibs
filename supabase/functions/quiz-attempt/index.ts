@@ -37,9 +37,9 @@ Deno.serve(async (req) => {
   });
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
+  // Allow anonymous attempts (for public access)
   const { data: userData, error: userErr } = await authed.auth.getUser();
-  if (userErr || !userData.user) return json(401, { error: "Unauthorized" });
-  const userId = userData.user.id;
+  const userId = userData?.user?.id ?? null;
 
   let body: AttemptBody;
   try {
@@ -93,7 +93,12 @@ Deno.serve(async (req) => {
 
   const isCorrect = body.selectedIndex === quiz.correct_index;
 
-  // 2) Record attempt (service role) + mark completion (if correct)
+  // If anonymous, just return isCorrect without saving anything
+  if (!userId) {
+    return json(200, { ok: true, isCorrect });
+  }
+
+  // 2) Record attempt (service role) + mark completion (if correct) for signed-in users
   const { error: insAttemptErr } = await admin.from("quiz_attempts").insert({
     event_id: event.id,
     user_id: userId,

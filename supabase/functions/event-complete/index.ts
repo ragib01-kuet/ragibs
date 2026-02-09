@@ -36,9 +36,9 @@ Deno.serve(async (req) => {
   });
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
+  // Allow anonymous access (for public project)
   const { data: userData, error: userErr } = await authed.auth.getUser();
-  if (userErr || !userData.user) return json(401, { error: "Unauthorized" });
-  const userId = userData.user.id;
+  const userId = userData?.user?.id ?? null;
 
   let body: Body;
   try {
@@ -79,7 +79,12 @@ Deno.serve(async (req) => {
   const canAccess = Boolean(video.published || video.owner_id === userId || isAdmin);
   if (!canAccess) return json(403, { error: "Forbidden" });
 
-  // Record completion
+  // If anonymous, just return ok without saving anything
+  if (!userId) {
+    return json(200, { ok: true });
+  }
+
+  // Record completion for signed-in users
   const { error: compErr } = await admin.from("video_event_completions").insert({
     event_id: event.id,
     user_id: userId,
