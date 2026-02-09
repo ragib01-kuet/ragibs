@@ -228,6 +228,10 @@ export default function VideoPage() {
         }
       }
 
+      // Auto-popups and completion require a real signed-in session.
+      // Without that, function calls would use an anon token and return 401.
+      if (!userId) return;
+
       if (activeEventId) return;
       if (events.length === 0) return;
 
@@ -564,8 +568,10 @@ export default function VideoPage() {
                   }
                 : undefined
             }
+            isAuthed={Boolean(userId)}
             busy={eventsQuery.isLoading || quizzesQuery.isLoading || progressQuery.isLoading}
             onSubmitQuiz={async (selectedIndex) => {
+              if (!userId) return { ok: false, isCorrect: false };
               const res = await supabase.functions.invoke("quiz-attempt", {
                 body: { eventId: activeEvent.id, selectedIndex },
               });
@@ -581,6 +587,7 @@ export default function VideoPage() {
             }}
             completed={activeCompleted}
             onComplete={async () => {
+              if (!userId) return { ok: false };
               const res = await supabase.functions.invoke("event-complete", {
                 body: { eventId: activeEvent.id },
               });

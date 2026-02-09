@@ -37,6 +37,7 @@ export function VideoEventOverlay({
   completed,
   onClose,
   previewOnly,
+  isAuthed = true,
 }: {
   event: OverlayEvent;
   quiz?: OverlayQuiz;
@@ -47,6 +48,7 @@ export function VideoEventOverlay({
   completed: boolean;
   onClose: () => void;
   previewOnly?: boolean;
+  isAuthed?: boolean;
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [result, setResult] = useState<{ ok: boolean; isCorrect: boolean } | null>(null);
@@ -126,11 +128,15 @@ export function VideoEventOverlay({
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
-                    disabled={busy || submitting || selectedIndex === null}
+                    disabled={busy || submitting || selectedIndex === null || (!previewOnly && !isAuthed)}
                     onClick={async () => {
                       if (selectedIndex === null) return;
                       if (previewOnly) {
                         onClose();
+                        return;
+                      }
+                      if (!isAuthed) {
+                        setResult({ ok: false, isCorrect: false });
                         return;
                       }
                       setSubmitting(true);
@@ -158,13 +164,16 @@ export function VideoEventOverlay({
                     </Button>
                   ) : null}
                 </div>
+                {!previewOnly && !isAuthed ? <p className="text-sm text-destructive">Sign in required to continue.</p> : null}
                 {!previewOnly && result ? (
                   <p className={result.ok && result.isCorrect ? "text-sm text-muted-foreground" : "text-sm text-destructive"}>
                     {result.ok
                       ? result.isCorrect
                         ? "Correct. Continuing…"
                         : "Wrong answer — try again."
-                      : "Submit failed. Please try again."}
+                      : isAuthed
+                        ? "Submit failed. Please try again."
+                        : "Sign in required to submit."}
                   </p>
                 ) : null}
               </div>
@@ -195,6 +204,10 @@ export function VideoEventOverlay({
                     ) : event.required ? (
                       <Button
                         onClick={async () => {
+                          if (!isAuthed) {
+                            setCompleteError("Sign in required to mark complete.");
+                            return;
+                          }
                           setCompleteError(null);
                           setCompleting(true);
                           try {
@@ -210,7 +223,7 @@ export function VideoEventOverlay({
                             setCompleting(false);
                           }
                         }}
-                        disabled={busy || completing || completed}
+                        disabled={busy || completing || completed || !isAuthed}
                       >
                         {completed ? "Completed" : completing ? "Saving…" : "Mark complete"}
                       </Button>
@@ -264,6 +277,10 @@ export function VideoEventOverlay({
                     ) : event.required ? (
                       <Button
                         onClick={async () => {
+                          if (!isAuthed) {
+                            setCompleteError("Sign in required to mark complete.");
+                            return;
+                          }
                           setCompleteError(null);
                           setCompleting(true);
                           try {
@@ -279,7 +296,7 @@ export function VideoEventOverlay({
                             setCompleting(false);
                           }
                         }}
-                        disabled={busy || completing || completed}
+                        disabled={busy || completing || completed || !isAuthed}
                       >
                         {completed ? "Completed" : completing ? "Saving…" : "Mark complete"}
                       </Button>

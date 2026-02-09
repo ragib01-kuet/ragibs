@@ -1039,6 +1039,7 @@ export default function TeacherVideoTimeline() {
           event={previewEvent}
           quiz={previewQuiz}
           previewOnly
+          isAuthed
           busy={busy || eventsQuery.isLoading || quizzesQuery.isLoading}
           completed={false}
           onSubmitQuiz={async () => ({ ok: true, isCorrect: true })}
