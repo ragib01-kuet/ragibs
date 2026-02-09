@@ -350,7 +350,9 @@ export default function VideoPage() {
             <div className="space-y-3">
               <div>
                 <div className="text-sm font-medium">Timeline events</div>
-                <div className="text-xs text-muted-foreground">Quizzes submit through the secure backend endpoint.</div>
+                <div className="text-xs text-muted-foreground">
+                  Quizzes auto-popup during playback. Simulations and exams are listed here.
+                </div>
               </div>
               {eventsQuery.isLoading ? (
                 <p className="text-sm text-muted-foreground">Loading events…</p>
@@ -360,7 +362,9 @@ export default function VideoPage() {
                 <p className="text-sm text-muted-foreground">No events yet.</p>
               ) : (
                 <div className="space-y-3">
-                  {events.map((e) => {
+                  {events
+                    .filter((e) => e.type !== "quiz") // Hide quizzes from the student timeline list (they still auto-popup)
+                    .map((e) => {
                     const quiz = e.type === "quiz" ? quizByEventId.get(e.id) : undefined;
                     const examUrl = e.type === "exam" ? (e.payload?.url as string | undefined) : undefined;
                     const simulationUrl = e.type === "simulation" ? (e.payload?.simulation_url as string | undefined) : undefined;

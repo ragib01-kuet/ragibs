@@ -228,6 +228,33 @@ export default function TeacherVideoTimeline() {
   // 1-based for UX: user types 1,2,3... (stored as 0-based in DB)
   const [quizCorrectIndex, setQuizCorrectIndex] = useState(1);
 
+  // Local draft autosave: persist quizQuestion/quizOptionsText/quizCorrectIndex to localStorage whenever they change (for "Add quiz")
+  const draftKey = useMemo(() => `quiz-draft-${videoId}`, [videoId]);
+  useEffect(() => {
+    if (type !== "quiz") return;
+    const draft = { quizQuestion, quizOptionsText, quizCorrectIndex };
+    localStorage.setItem(draftKey, JSON.stringify(draft));
+  }, [quizQuestion, quizOptionsText, quizCorrectIndex, type, draftKey]);
+
+  // Restore draft on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(draftKey);
+      if (!stored) return;
+      const draft = JSON.parse(stored);
+      if (draft.quizQuestion) setQuizQuestion(draft.quizQuestion);
+      if (draft.quizOptionsText) setQuizOptionsText(draft.quizOptionsText);
+      if (Number.isFinite(draft.quizCorrectIndex)) setQuizCorrectIndex(draft.quizCorrectIndex);
+    } catch {
+      // ignore
+    }
+  }, [draftKey]);
+
+  // Clear draft on successful quiz save
+  function clearDraft() {
+    localStorage.removeItem(draftKey);
+  }
+
   async function uploadSimulationHtml(file: File) {
     if (!session) throw new Error("Not signed in");
     const userId = session.user.id;
@@ -294,11 +321,14 @@ export default function TeacherVideoTimeline() {
             ? e.payload ?? {}
             : e.payload ?? {};
 
+      // Force quiz=required, simulation=optional
+      const finalRequired = e.type === "quiz" ? true : e.type === "simulation" ? false : editRequired;
+
       const up = await supabase
         .from("timeline_events")
         .update({
           at_seconds: Math.max(0, Math.floor(editAtSeconds)),
-          required: editRequired,
+          required: finalRequired,
           title: editTitle.trim() || null,
           payload: nextPayload,
         })
@@ -369,6 +399,8 @@ export default function TeacherVideoTimeline() {
     setError(null);
     let createdEventId: string | null = null;
     try {
+      // Force quiz=required, simulation=optional
+      const finalRequired = type === "quiz" ? true : type === "simulation" ? false : required;
       const insertRes = await supabase
         .from("timeline_events")
         .insert({
@@ -376,7 +408,7 @@ export default function TeacherVideoTimeline() {
           owner_id: session.user.id,
           type,
           at_seconds: Math.max(0, Math.floor(atSeconds)),
-          required,
+          required: finalRequired,
           title: title.trim() || null,
           payload,
         })
@@ -413,6 +445,9 @@ export default function TeacherVideoTimeline() {
       setRequired(true);
       setExamUrl("");
       setQuizQuestion("");
+      setQuizOptionsText("Option A\nOption B\nOption C\nOption D");
+      setQuizCorrectIndex(1);
+      clearDraft();
 
       await eventsQuery.refetch();
       await quizzesQuery.refetch();
@@ -739,13 +774,15 @@ export default function TeacherVideoTimeline() {
                 <Label>Title (optional)</Label>
                 <Input value={title} disabled={!canUse || busy} onChange={(e) => setTitle(e.target.value)} />
               </div>
-              <div className="flex items-center justify-between rounded-lg border p-3 md:col-span-2">
-                <div>
-                  <div className="text-sm font-medium">Required</div>
-                  <div className="text-xs text-muted-foreground">Used later for seek-lock / completion gating.</div>
+              {type === "exam" ? (
+                <div className="flex items-center justify-between rounded-lg border p-3 md:col-span-2">
+                  <div>
+                    <div className="text-sm font-medium">Required</div>
+                    <div className="text-xs text-muted-foreground">Quizzes are always required; simulations are optional.</div>
+                  </div>
+                  <Switch checked={required} disabled={!canUse || busy} onCheckedChange={setRequired} />
                 </div>
-                <Switch checked={required} disabled={!canUse || busy} onCheckedChange={setRequired} />
-              </div>
+              ) : null}
             </div>
 
             <Separator />
@@ -946,13 +983,15 @@ export default function TeacherVideoTimeline() {
                             <Label>Title (optional)</Label>
                             <Input value={editTitle} disabled={!canUse || busy} onChange={(ev) => setEditTitle(ev.target.value)} />
                           </div>
-                          <div className="flex items-center justify-between rounded-lg border p-3 md:col-span-2">
-                            <div>
-                              <div className="text-sm font-medium">Required</div>
-                              <div className="text-xs text-muted-foreground">Used later for seek-lock / completion gating.</div>
+                          {e.type === "exam" ? (
+                            <div className="flex items-center justify-between rounded-lg border p-3 md:col-span-2">
+                              <div>
+                                <div className="text-sm font-medium">Required</div>
+                                <div className="text-xs text-muted-foreground">Quizzes are always required; simulations are optional.</div>
+                              </div>
+                              <Switch checked={editRequired} disabled={!canUse || busy} onCheckedChange={setEditRequired} />
                             </div>
-                            <Switch checked={editRequired} disabled={!canUse || busy} onCheckedChange={setEditRequired} />
-                          </div>
+                          ) : null}
 
                           {e.type === "exam" ? (
                             <div className="space-y-2 md:col-span-2">

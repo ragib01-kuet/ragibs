@@ -25,13 +25,14 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
-  if (!supabaseUrl || !serviceRoleKey) {
+  if (!supabaseUrl || !serviceRoleKey || !anonKey) {
     return json(500, { error: "Server misconfigured" });
   }
 
   const authHeader = req.headers.get("Authorization") ?? "";
-  const authed = createClient(supabaseUrl, Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? "", {
+  const authed = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
   const admin = createClient(supabaseUrl, serviceRoleKey);
